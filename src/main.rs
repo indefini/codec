@@ -81,7 +81,15 @@ fn main() {
     };
 
     let state = get_content(&get_state_url).unwrap();
-    println!("{}", state);
+    let state = json::parse(&state).unwrap();
+    //println!("{}", state.pretty(2));
+    if let Some(ref next_batch) = state["next_batch"].as_str() {
+
+    };
+
+    for (key, value) in state["rooms"]["join"].entries() {
+        println!("key : {}", key);
+    }
 
 }
 
