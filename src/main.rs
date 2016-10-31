@@ -3,6 +3,7 @@ extern crate url;
 extern crate rustc_serialize;
 #[macro_use]
 extern crate json;
+extern crate rscam;
 
 use std::io::Read;
 use hyper::{Client};
