@@ -1,0 +1,10 @@
+[package]
+name = "codec"
+version = "0.1.0"
+authors = ["indefini <chris@indefini.org>"]
+
+[dependencies]
+hyper = "*"
+url = "*"
+rustc-serialize = "*"
+json = "*"
