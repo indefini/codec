@@ -1,9 +1,25 @@
+#![cfg_attr(feature = "serde_derive", feature(proc_macro))]
+
+#[cfg(feature = "serde_derive")]
+#[macro_use]
+extern crate serde_derive;
+
+extern crate serde;
+extern crate serde_json;
+
 extern crate hyper;
 extern crate url;
 extern crate rustc_serialize;
 #[macro_use]
 extern crate json;
 extern crate rscam;
+
+#[cfg(feature = "serde_derive")]
+include!("serde_types.in.rs");
+
+#[cfg(feature = "serde_codegen")]
+include!(concat!(env!("OUT_DIR"), "/serde_types.rs"));
+
 
 use std::io::Read;
 use hyper::{Client};
@@ -45,6 +61,7 @@ const URL : &'static str = "https://matrix.org:8448";
 const LOGIN : &'static str = "/_matrix/client/r0/login";
 const GET_STATE : &'static str = "/_matrix/client/r0/sync?access_token=";//YOUR_ACCESS_TOKEN"
 const GET_STATE_FILTER :&'static str = "/_matrix/client/r0/sync?filter={\"room\":{\"timeline\":{\"limit\":1}}}&access_token=";
+const GET_STATE_LIMIT : &'static str = "/_matrix/client/r0/sync?limit=1&access_token=";
 
 //const SEND_MSG = &'static str = "_matrix/client/r0/rooms/%21asfLdzLnOdGRkdPZWu:localhost/send/m.room.message?access_token=YOUR_ACCESS_TOKEN"
 
@@ -74,7 +91,8 @@ fn main() {
 
 
     let get_state_url = {
-        let mut s = URL.to_owned() + GET_STATE_FILTER;
+        let mut s = URL.to_owned() + GET_STATE_LIMIT;
+        //let mut s = URL.to_owned() + GET_STATE;
         if let Some(ref at) = login["access_token"].as_str() {
             s.push_str(at);
         }
@@ -83,7 +101,7 @@ fn main() {
 
     let state = get_content(&get_state_url).unwrap();
     let state = json::parse(&state).unwrap();
-    //println!("{}", state.pretty(2));
+    println!("{}", state.pretty(2));
     if let Some(ref next_batch) = state["next_batch"].as_str() {
 
     };

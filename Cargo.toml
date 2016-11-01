@@ -2,6 +2,14 @@
 name = "codec"
 version = "0.1.0"
 authors = ["indefini <chris@indefini.org>"]
+build = "build.rs"
+
+[features]
+default = ["serde_codegen"]
+unstable = ["serde_derive"]
+
+[build-dependencies]
+serde_codegen = { version = "0.8", optional = true }
 
 [dependencies]
 hyper = "*"
@@ -9,3 +17,6 @@ url = "*"
 rustc-serialize = "*"
 json = "*"
 rscam = "*"
+serde = "0.8"
+serde_derive = { version = "0.8", optional = true }
+serde_json = "0.8"
