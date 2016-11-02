@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use serde::Serializer;
+use serde::Deserializer;
 
 /// Login
 #[derive(Serialize, Deserialize, Debug)]
@@ -82,7 +82,7 @@ struct Presence
 #[derive(Serialize, Deserialize, Debug)]
 struct Event
 {
-    #[serde(serialize_with = "ser_content")]
+    #[serde(deserialize_with = "de_content")]
     content : i32, //EventContent,
     origin_server_ts : Option<u64>,
     sender : Option<String>,
@@ -92,10 +92,10 @@ struct Event
     state_key : Option<String>
 }
 
-fn ser_content<S>(t : &i32, serializer : &mut S) -> Result<(), S::Error> 
-where S : Serializer
+fn de_content<D>(de : &mut D) -> Result<i32, D::Error> 
+where D : Deserializer
 {
-    serializer.serialize_i32(4)
+    Ok(4)
 }
 
 #[derive(Serialize, Deserialize, Debug)]
