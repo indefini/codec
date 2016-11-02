@@ -57,51 +57,44 @@ fn post_json_object(url: &str, body: &JsonValue) -> hyper::Result<String>
 
 const POST_TEST : &'static str = "http://httpbin.org/post";
 
+
 const URL : &'static str = "https://matrix.org:8448";
-const LOGIN : &'static str = "/_matrix/client/r0/login";
-const GET_STATE : &'static str = "/_matrix/client/r0/sync?access_token=";//YOUR_ACCESS_TOKEN"
-const GET_STATE_FILTER :&'static str = "/_matrix/client/r0/sync?filter={\"room\":{\"timeline\":{\"limit\":1}}}&access_token=";
-const GET_STATE_LIMIT : &'static str = "/_matrix/client/r0/sync?limit=1&access_token=";
+const PREFIX :&'static str = "/_matrix/client/r0";
+const GET_STATE : &'static str = "/sync?access_token=";//YOUR_ACCESS_TOKEN"
+const GET_STATE_FILTER :&'static str = "/sync?filter={\"room\":{\"timeline\":{\"limit\":1}}}&access_token=";
 
 //const SEND_MSG = &'static str = "_matrix/client/r0/rooms/%21asfLdzLnOdGRkdPZWu:localhost/send/m.room.message?access_token=YOUR_ACCESS_TOKEN"
 
  //'{"msgtype":"m.text", "body":"hello"}' "https://localhost:8448/_matrix/client/r0/rooms/%21asfLdzLnOdGRkdPZWu:localhost/send/m.room.message?access_token=YOUR_ACCESS_TOKEN"
  
-
-
-fn main() {
-    println!("Hello you!");
-    let args : Vec<String> = env::args().collect();
-    if args.len() < 3 {
-        panic!("not enough arguments");
-    }
-
+fn login(login : &str, pass : &str) -> Box<LoginResponse>
+{
     let obj = object!{
         "type" => "m.login.password",
-        "user" => args[1].as_str(),
-        "password" => args[2].as_str()
+        "user" => login,
+        "password" => pass
     };
 
-    let login_url = URL.to_owned() + LOGIN;
+    let login_url = URL.to_owned() + PREFIX + "/login";
     let login =  post_json_object(&login_url, &obj).unwrap();
 
-    println!("{}", login);
+    //println!("{}", login);
 
-    let login = json::parse(&login).unwrap();
+    //let login = json::parse(&login).unwrap();
+    
+    Box::new(serde_json::from_str(&login).unwrap())
+}
 
-
-    let get_state_url = {
-        let mut s = URL.to_owned() + GET_STATE_LIMIT;
-        //let mut s = URL.to_owned() + GET_STATE;
-        if let Some(ref at) = login["access_token"].as_str() {
-            s.push_str(at);
-        }
-        s
-    };
+fn sync(access_token : &str) -> Box<Sync>
+{
+    let get_state_url = URL.to_owned() + PREFIX + GET_STATE_FILTER + access_token;
 
     let state = get_content(&get_state_url).unwrap();
-    let state = json::parse(&state).unwrap();
-    println!("{}", state.pretty(2));
+
+    //let pretty = json::parse(&state).unwrap();
+    //let state = pretty.pretty(2);
+    //println!("{}", state);
+    /*
     if let Some(ref next_batch) = state["next_batch"].as_str() {
 
     };
@@ -109,6 +102,43 @@ fn main() {
     for (key, value) in state["rooms"]["join"].entries() {
         println!("key : {}", key);
     }
+    */
+
+    Box::new(serde_json::from_str(&state).unwrap())
+
+}
+
+fn get_messages(access_token : &str, room_id : &str, from : &str) -> Box<Messages>
+{
+    let url = URL.to_owned() + PREFIX + "/rooms/" + room_id + "/messages" + "?from=" + from + "&dir=b&limit=10" + "&access_token=" + access_token;
+    //println!("url : {}", url);
+    let messages = get_content(&url).unwrap();
+
+    /*
+    let pretty = json::parse(&messages).unwrap();
+    let ppp = pretty.pretty(2);
+    println!("{}", ppp);
+    */
+
+    Box::new(serde_json::from_str(&messages).unwrap())
+}
+
+fn main() {
+    //println!("Hello you!");
+    let args : Vec<String> = env::args().collect();
+    if args.len() < 3 {
+        panic!("not enough arguments");
+    }
+
+    let login = login(args[1].as_str(), args[2].as_str());
+    let sync = sync(&login.access_token);
+
+    let room_messages : Vec<Box<Messages>> = 
+        sync.rooms.join.iter().map(|(id, room)|
+            get_messages(
+                &login.access_token,
+                id,
+                &room.timeline.prev_batch)).collect();
 
 }
 
