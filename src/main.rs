@@ -91,9 +91,9 @@ fn sync(access_token : &str) -> Box<Sync>
 
     let state = get_content(&get_state_url).unwrap();
 
-    //let pretty = json::parse(&state).unwrap();
-    //let state = pretty.pretty(2);
-    //println!("{}", state);
+    let pretty = json::parse(&state).unwrap();
+    let state = pretty.pretty(2);
+    println!("{}", state);
     /*
     if let Some(ref next_batch) = state["next_batch"].as_str() {
 

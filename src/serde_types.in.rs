@@ -315,7 +315,7 @@ where D : Deserializer
 #[derive(Serialize, Deserialize, Debug)]
 struct Unsigned
 {
-    //prev_content : Option<EventContent>,
+    prev_content : Option<EventContent>,
     age : Option<u64>,
     transaction_id : Option<String>
 }
@@ -330,7 +330,11 @@ enum Membership
 struct EventContent
 {
     body : Option<String>,
-    msgtype : Option<String>
+    msgtype : Option<String>,
+    name : Option<String>,
+    avatar_url : Option<String>,
+    displayname : Option<String>,
+    membership : Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
