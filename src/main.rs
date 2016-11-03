@@ -114,11 +114,9 @@ fn get_messages(access_token : &str, room_id : &str, from : &str) -> Box<Message
     //println!("url : {}", url);
     let messages = get_content(&url).unwrap();
 
-    /*
-    let pretty = json::parse(&messages).unwrap();
-    let ppp = pretty.pretty(2);
-    println!("{}", ppp);
-    */
+    //let pretty = json::parse(&messages).unwrap();
+    //let ppp = pretty.pretty(2);
+    //println!("{}", ppp);
 
     Box::new(serde_json::from_str(&messages).unwrap())
 }
@@ -139,6 +137,14 @@ fn main() {
                 &login.access_token,
                 id,
                 &room.timeline.prev_batch)).collect();
+
+    for rm in room_messages {
+        for e in rm.chunk {
+            if e.kind == "m.room.message" {
+                println!("event : {}", e.content.body.unwrap());
+            }
+        }
+    }
 
 }
 
