@@ -20,3 +20,7 @@ rscam = "*"
 serde = "0.8"
 serde_derive = { version = "0.8", optional = true }
 serde_json = "0.8"
+libc = "*"
+
+[dependencies.efl-sys]
+path = "efl-sys"

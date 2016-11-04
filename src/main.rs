@@ -132,7 +132,7 @@ fn main() {
     let login = login(args[1].as_str(), args[2].as_str());
     let sync = sync(&login.access_token);
 
-    let rooms : room::Rooms =  { 
+    let mut rooms : room::Rooms =  { 
         let mut r = HashMap::new();
         for (id, room) in sync.rooms.join.iter() {
 
@@ -156,22 +156,42 @@ fn main() {
         r
     };
 
-    println!("rooms : {:?}", rooms);
-
-    let room_messages : Vec<Box<Messages>> = 
+    let room_messages : HashMap<String, Box<Messages>> = 
         sync.rooms.join.iter().map(|(id, room)|
-            get_messages(
+            (id.clone(), get_messages(
                 &login.access_token,
                 id,
-                &room.timeline.prev_batch)).collect();
+                &room.timeline.prev_batch))).collect();
 
-    for rm in room_messages {
-        for e in rm.chunk {
+    for (room_id, messages) in &room_messages {
+        let mut room = rooms.get_mut(room_id).unwrap();
+        for e in &messages.chunk {
             if e.kind == "m.room.message" {
-                println!("event : {}", e.content.body.unwrap());
+                let msgtype = if let Some(ref t) = e.content.msgtype {
+                    t.clone()
+                }
+                else {
+                    break;
+                };
+
+                let body = if let Some(ref body) = e.content.body {
+                    body.clone()
+                }
+                else {
+                        break
+                };
+
+                let m = match msgtype.as_str() {
+                    "m.text" => room::Message::Text(body),
+                    _ => break
+                };
+
+                room.messages.push(m);
             }
         }
     }
+
+    println!("rooms : {:?}", rooms);
 
 }
 

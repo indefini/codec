@@ -6,8 +6,8 @@ pub type Rooms = HashMap<String, Room>;
 pub struct Room
 {
     //id : String,
-    name : String,
-    messages : Vec<Message>
+    pub name : String,
+    pub messages : Vec<Message>
 }
 
 impl Room {
