@@ -1,5 +1,3 @@
-#![feature(append)]
-
 extern crate pkg_config;
 extern crate gcc;
 
@@ -9,7 +7,7 @@ use std::path::PathBuf;
 
 fn main() {
     let mut paths  = Vec::new();
-    if let Ok(ref mut info) = pkg_config::find_library("efl") {
+    if let Ok(ref mut info) = pkg_config::find_library("elementary") {
         paths.append(&mut info.include_paths);
     }
     if let Ok(ref mut info) = pkg_config::find_library("ecore-x") {
