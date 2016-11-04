@@ -20,6 +20,7 @@ include!("serde_types.in.rs");
 #[cfg(feature = "serde_codegen")]
 include!(concat!(env!("OUT_DIR"), "/serde_types.rs"));
 
+mod room;
 
 use std::io::Read;
 use hyper::{Client};
@@ -130,6 +131,32 @@ fn main() {
 
     let login = login(args[1].as_str(), args[2].as_str());
     let sync = sync(&login.access_token);
+
+    let rooms : room::Rooms =  { 
+        let mut r = HashMap::new();
+        for (id, room) in sync.rooms.join.iter() {
+
+            let mut name = None;
+            
+            for e in room.state.events.iter() {
+                if e.kind == "m.room.name" {
+                    if let Some(ref n) = e.content.name {
+                        name = Some(n.clone());
+                    }
+                    break;
+                }
+            }
+
+            if name.is_none() {
+                name = Some("room has no name".to_owned());
+            }
+
+            r.insert(id.clone(), room::Room::new(&name.unwrap()));
+        }
+        r
+    };
+
+    println!("rooms : {:?}", rooms);
 
     let room_messages : Vec<Box<Messages>> = 
         sync.rooms.join.iter().map(|(id, room)|
