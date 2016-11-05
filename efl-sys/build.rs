@@ -18,6 +18,7 @@ fn main() {
 
 fn build_efl_key(include_paths: &[PathBuf]) {
     let mut config = gcc::Config::new();
+    config.include(".");
 
     for path in include_paths {
         config.include(path);

@@ -14,6 +14,8 @@ extern crate rustc_serialize;
 extern crate json;
 extern crate rscam;
 
+extern crate efl_sys as efl;
+
 #[cfg(feature = "serde_derive")]
 include!("serde_types.in.rs");
 
