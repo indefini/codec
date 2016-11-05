@@ -12,26 +12,26 @@ extern "C" {
     fn login_new(on_request_login_cb : *const c_void, rust_data : *const c_void) -> *const Eo;
 }
 
-struct LoginWidget
+pub struct LoginWidget
 {
     eo : *const Eo
 }
 
 impl LoginWidget
 {
-    fn new(core : *mut c_void) -> LoginWidget
+    pub fn new(core : *const c_void) -> LoginWidget
     {
         LoginWidget {
             eo : unsafe { login_new(request_login_from_ui as *const _, core) }
         }
     }
 
-    fn on_success(&self, success : bool)
+    pub fn on_success(&self, success : bool)
     {
         unsafe { login_success(self.eo, success); }
     }
 
-    fn set_visible(visible : bool)
+    pub fn set_visible(visible : bool)
     {
         panic!("TODO set visible");
     }

@@ -14,6 +14,8 @@ extern crate rustc_serialize;
 extern crate json;
 extern crate rscam;
 
+extern crate libc;
+
 extern crate efl_sys as efl;
 
 #[cfg(feature = "serde_derive")]
@@ -23,6 +25,7 @@ include!("serde_types.in.rs");
 include!(concat!(env!("OUT_DIR"), "/serde_types.rs"));
 
 mod room;
+mod core;
 
 use std::io::Read;
 use hyper::{Client};
