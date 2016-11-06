@@ -1,11 +1,12 @@
 #include "efl.h"
+#include "stdio.h"
 
-void init()
+void efl_init()
 {
   elm_init(0,0);
 }
 
-void run()
+void efl_run()
 {
   elm_run();
   elm_shutdown();
@@ -18,21 +19,35 @@ void kexit()
 
 static Eo* _win = NULL;
 
+static void
+_window_del(void *data, Evas_Object* o, void* event_info)
+{
+  elm_exit();
+}
+
 Eo* window_get_or_create()
 {
   if (_win == NULL) {
     _win = elm_win_util_standard_add("codec", "codec");
     elm_win_autodel_set(_win, EINA_TRUE);
+    evas_object_smart_callback_add(_win, "delete,request", _window_del, NULL);
   }
 
   return _win;
 }
 
-
 static void
 password_entry_changed_cb(void *data EINA_UNUSED, Evas_Object *obj, void *event_info EINA_UNUSED)
 {
      printf("Password : %s\n", elm_entry_entry_get(obj));
+}
+
+static void
+password_entry_activated_cb(void *data EINA_UNUSED, Evas_Object *obj, void *event_info EINA_UNUSED)
+{
+     printf("entry activated Password : %s\n", elm_entry_entry_get(obj));
+     struct Login* log = data;
+     log->cb(log->object, "dance", elm_entry_entry_get(obj));
 }
 
 static void
@@ -58,6 +73,7 @@ show_password_check_changed_cb(void *data, Evas_Object *obj, void *event_info EI
 void* login_new(Request_Login_Cb request_login_cb, void* data) {
 
   Eo *win, *bx, *en, *ck;
+  struct Login *log = calloc(1, sizeof(*log));
   
   win = window_get_or_create();
 
@@ -77,6 +93,7 @@ void* login_new(Request_Login_Cb request_login_cb, void* data) {
   evas_object_show(en);
 
   evas_object_smart_callback_add(en, "changed", password_entry_changed_cb, NULL);
+  evas_object_smart_callback_add(en, "activated", password_entry_activated_cb, log);
 
   ck = elm_check_add(bx);
   elm_object_text_set(ck, "Show Password");
@@ -87,7 +104,6 @@ void* login_new(Request_Login_Cb request_login_cb, void* data) {
   evas_object_resize(win, 300, 100);
   evas_object_show(win);
 
-  struct Login *log = calloc(1, sizeof(*log));
   log->cb = request_login_cb;
   log->data = data;
   log->object = bx;

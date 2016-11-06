@@ -129,6 +129,7 @@ fn get_messages(access_token : &str, room_id : &str, from : &str) -> Box<Message
 
 fn main() {
     //println!("Hello you!");
+    /*
     let args : Vec<String> = env::args().collect();
     if args.len() < 3 {
         panic!("not enough arguments");
@@ -197,6 +198,11 @@ fn main() {
     }
 
     println!("rooms : {:?}", rooms);
+    */
+
+    efl::app_init();
+    core::App::new();
+    efl::app_run();
 
 }
 

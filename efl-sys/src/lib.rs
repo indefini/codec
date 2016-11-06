@@ -8,6 +8,9 @@ enum Eo {}
 pub type LoginSuccessCb = extern fn(data : *const Eo, success : bool);
 
 extern "C" {
+    fn efl_init();
+    fn efl_run();
+
     fn login_success(ob : *const Eo, b : bool);
     fn login_new(on_request_login_cb : *const c_void, rust_data : *const c_void) -> *const Eo;
 }
@@ -19,10 +22,12 @@ pub struct LoginWidget
 
 impl LoginWidget
 {
-    pub fn new(core : *const c_void) -> LoginWidget
+    pub fn new(
+        cb : *const c_void,
+        core : *const c_void) -> LoginWidget
     {
         LoginWidget {
-            eo : unsafe { login_new(request_login_from_ui as *const _, core) }
+            eo : unsafe { login_new(cb as *const _, core) }
         }
     }
 
@@ -38,14 +43,12 @@ impl LoginWidget
 
 }
 
-extern fn request_login_from_ui(
-    data : *const c_void,
-    user : *const c_char,
-    pass : *const c_char)
-{
-    //TODO
-    //let core : &Core = unsafe {mem::transmute(data) };
-    //core.request_login_from_ui(user, pass);
+pub fn app_init() {
+    unsafe { efl_init(); }
+}
+
+pub fn app_run() {
+    unsafe { efl_run(); }
 }
 
 
