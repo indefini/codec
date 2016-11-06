@@ -6,6 +6,8 @@ struct Login {
   Request_Login_Cb cb;
   void *data;
   Eo* object;
+  Eo* username;
+  Eo* pass;
 };
 
 void* login_new(Request_Login_Cb request_login_cb, void* data);

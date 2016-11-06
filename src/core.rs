@@ -50,18 +50,12 @@ extern fn request_login_from_ui(
     user : *const c_char,
     pass : *const c_char)
 {
-    //TODO
-    //let core : *const Core = unsafe {mem::transmute(data) };
     let core : *const Core = data as *const Core; 
     let core = unsafe { &*core };
-    core.request_login_from_ui("logtest", &*get_str(pass));//user, pass);
-    
+    core.request_login_from_ui(&*get_str(user), &*get_str(pass));  
 }
 
 fn get_string(str : *const c_char) -> String {
-    unsafe {
-    //    CStr::from_ptr(str).to_string_lossy().into_owned()
-    }
     get_str(str).into_owned()
 }
 

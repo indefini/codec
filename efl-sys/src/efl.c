@@ -1,5 +1,5 @@
 #include "efl.h"
-#include "stdio.h"
+#include <stdio.h>
 
 void efl_init()
 {
@@ -37,17 +37,23 @@ Eo* window_get_or_create()
 }
 
 static void
-password_entry_changed_cb(void *data EINA_UNUSED, Evas_Object *obj, void *event_info EINA_UNUSED)
+login_entry_activated_cb(void *data EINA_UNUSED, Evas_Object *obj, void *event_info EINA_UNUSED)
 {
-     printf("Password : %s\n", elm_entry_entry_get(obj));
+     printf("entry activated login : %s\n", elm_entry_entry_get(obj));
+     struct Login* log = data;
+     elm_object_focus_set(log->pass, EINA_TRUE);
 }
+
 
 static void
 password_entry_activated_cb(void *data EINA_UNUSED, Evas_Object *obj, void *event_info EINA_UNUSED)
 {
      printf("entry activated Password : %s\n", elm_entry_entry_get(obj));
      struct Login* log = data;
-     log->cb(log->object, "dance", elm_entry_entry_get(obj));
+     log->cb(
+         log->data,
+         elm_entry_entry_get(log->username),
+         elm_entry_entry_get(obj));
 }
 
 static void
@@ -85,6 +91,23 @@ void* login_new(Request_Login_Cb request_login_cb, void* data) {
   en = elm_entry_add(bx);
   elm_entry_single_line_set(en, EINA_TRUE);
   elm_entry_scrollable_set(en, EINA_TRUE);
+  elm_object_part_text_set(en, "elm.guide", "Enter Your Login");
+  evas_object_size_hint_weight_set(en, EVAS_HINT_EXPAND, EVAS_HINT_EXPAND);
+  evas_object_size_hint_align_set(en, EVAS_HINT_FILL, EVAS_HINT_FILL);
+  elm_box_pack_end(bx, en);
+  evas_object_show(en);
+
+  evas_object_smart_callback_add(
+      en,
+      "activated",
+      login_entry_activated_cb,
+      log);
+
+  log->username = en;
+
+  en = elm_entry_add(bx);
+  elm_entry_single_line_set(en, EINA_TRUE);
+  elm_entry_scrollable_set(en, EINA_TRUE);
   elm_entry_password_set(en, EINA_TRUE);
   elm_object_part_text_set(en, "elm.guide", "Enter Your Password");
   evas_object_size_hint_weight_set(en, EVAS_HINT_EXPAND, EVAS_HINT_EXPAND);
@@ -92,12 +115,22 @@ void* login_new(Request_Login_Cb request_login_cb, void* data) {
   elm_box_pack_end(bx, en);
   evas_object_show(en);
 
-  evas_object_smart_callback_add(en, "changed", password_entry_changed_cb, NULL);
-  evas_object_smart_callback_add(en, "activated", password_entry_activated_cb, log);
+  evas_object_smart_callback_add(
+      en,
+      "activated",
+      password_entry_activated_cb,
+      log);
+
+  log->pass = en;
 
   ck = elm_check_add(bx);
   elm_object_text_set(ck, "Show Password");
-  evas_object_smart_callback_add(ck, "changed", show_password_check_changed_cb, en);
+  evas_object_smart_callback_add(
+      ck,
+      "changed",
+      show_password_check_changed_cb,
+      en);
+
   elm_box_pack_end(bx, ck);
   evas_object_show(ck);
 
@@ -112,6 +145,6 @@ void* login_new(Request_Login_Cb request_login_cb, void* data) {
 }
 
 void login_success(Eina_Bool b) {
-  printnf("success : %d \n", b);
+  printf("success : %d \n", b);
 }
 
