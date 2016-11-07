@@ -78,7 +78,7 @@ show_password_check_changed_cb(void *data, Evas_Object *obj, void *event_info EI
 
 void* login_new(Request_Login_Cb request_login_cb, void* data) {
 
-  Eo *win, *bx, *en, *ck;
+  Eo *win, *bx, *bx2, *en, *ck;
   struct Login *log = calloc(1, sizeof(*log));
   
   win = window_get_or_create();
@@ -88,12 +88,28 @@ void* login_new(Request_Login_Cb request_login_cb, void* data) {
   elm_win_resize_object_add(win, bx);
   evas_object_show(bx);
 
+  bx2 = elm_box_add(bx);
+  elm_box_pack_end(bx, bx2);
+  bx = bx2;
+  evas_object_size_hint_weight_set(bx, EVAS_HINT_EXPAND, EVAS_HINT_EXPAND);
+  evas_object_size_hint_align_set(bx, 0.5, 0.5);
+  //evas_object_size_hint_min_set(bx, 600,400);
+  //evas_object_size_hint_max_set(bx, 600,400);
+  evas_object_size_hint_min_set(bx, 200, 200);
+  elm_object_scale_set(bx, 1.5f);
+  evas_object_show(bx);
+
+
   en = elm_entry_add(bx);
   elm_entry_single_line_set(en, EINA_TRUE);
   elm_entry_scrollable_set(en, EINA_TRUE);
   elm_object_part_text_set(en, "elm.guide", "Enter Your Login");
   evas_object_size_hint_weight_set(en, EVAS_HINT_EXPAND, EVAS_HINT_EXPAND);
   evas_object_size_hint_align_set(en, EVAS_HINT_FILL, EVAS_HINT_FILL);
+  Evas_Coord x, y;
+  evas_object_size_hint_min_get(en, &x, &y);
+  printf(" size : %d, %d \n", x, y);
+  //evas_object_size_hint_min_set(en, 200, y);
   elm_box_pack_end(bx, en);
   evas_object_show(en);
 
@@ -112,6 +128,7 @@ void* login_new(Request_Login_Cb request_login_cb, void* data) {
   elm_object_part_text_set(en, "elm.guide", "Enter Your Password");
   evas_object_size_hint_weight_set(en, EVAS_HINT_EXPAND, EVAS_HINT_EXPAND);
   evas_object_size_hint_align_set(en, EVAS_HINT_FILL, EVAS_HINT_FILL);
+  //evas_object_size_hint_min_set(en, 200, y);
   elm_box_pack_end(bx, en);
   evas_object_show(en);
 
@@ -134,7 +151,7 @@ void* login_new(Request_Login_Cb request_login_cb, void* data) {
   elm_box_pack_end(bx, ck);
   evas_object_show(ck);
 
-  evas_object_resize(win, 300, 100);
+  evas_object_resize(win, 600, 300);
   evas_object_show(win);
 
   log->cb = request_login_cb;
