@@ -41,7 +41,17 @@ impl Core
     fn request_login_from_ui(&self, user : &str, pass : &str)
     {
         println!("core : there was a request to login {}, {}", user, pass);
+        //TODO
+        //close the window,
+        //show some loading icon
+        //show "Login in" text
+        let login = login(user, pass);
+        //show "login success for 3sec"
+        //show another text at the same time "syncing"
+        let sync = sync(&login.access_token);
 
+        //or show login failed + show the pass window again
+        // 
     }
 }
 
