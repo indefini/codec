@@ -1,6 +1,9 @@
 #include "efl.h"
 #include <stdio.h>
 
+#define LOGIN_ENTRY_SIZE_MIN 50
+#define LOGIN_ENTRY_SIZE 200
+
 void efl_init()
 {
   elm_init(0,0);
@@ -76,30 +79,49 @@ show_password_check_changed_cb(void *data, Evas_Object *obj, void *event_info EI
   }
 }
 
+static void
+_changed_size_hints(void* data, Evas* e, Evas_Object* o, void *event_info)
+{
+  Evas_Coord minw, minh, maxw, maxh;
+  evas_object_size_hint_min_get(o, &minw, &minh);
+  evas_object_size_hint_max_get(o, &maxw, &maxh);
+  minw = minw > LOGIN_ENTRY_SIZE_MIN ? minw : LOGIN_ENTRY_SIZE_MIN;
+
+  evas_object_size_hint_min_set(data, minw, minh);
+}
+
 void* login_new(Request_Login_Cb request_login_cb, void* data) {
 
-  Eo *win, *bx, *table, *rect, *en, *ck;
+  Eo *win, *table, *bx, *grid, *en, *ck;
   struct Login *log = calloc(1, sizeof(*log));
   
   win = window_get_or_create();
 
+  /*
+  bx = elm_box_add(win);
+  evas_object_size_hint_weight_set(bx, EVAS_HINT_EXPAND, EVAS_HINT_EXPAND);
+  elm_win_resize_object_add(win, bx);
+  evas_object_show(bx);
+  */
+
   table = elm_table_add(win);
   evas_object_size_hint_weight_set(table, EVAS_HINT_EXPAND, EVAS_HINT_EXPAND);
-  elm_win_resize_object_add(win, table);
+  elm_win_resize_object_add(win,table);
   evas_object_show(table);
 
-  rect = evas_object_rectangle_add(evas_object_evas_get(win));
-  evas_object_size_hint_weight_set(rect, EVAS_HINT_EXPAND, EVAS_HINT_EXPAND);
-  evas_object_size_hint_align_set(rect, EVAS_HINT_FILL, EVAS_HINT_FILL);
-  evas_object_size_hint_min_set(rect, 600,300);
-  evas_object_size_hint_max_set(rect, 600,300);
-  elm_table_pack(table, rect, 0, 0, 1, 1);
-  evas_object_show(rect);
+  grid = elm_grid_add(win);
+  evas_object_size_hint_weight_set(grid, EVAS_HINT_EXPAND, 0);
+  evas_object_size_hint_align_set(grid, EVAS_HINT_FILL, 0.5);
+  evas_object_size_hint_min_set(grid, LOGIN_ENTRY_SIZE_MIN, -1);
+  evas_object_size_hint_max_set(grid, LOGIN_ENTRY_SIZE, -1);
+  //elm_box_pack_end(bx, grid);
+  elm_table_pack(table, grid, 0, 0, 1, 1);
+  evas_object_show(grid);
 
   bx = elm_box_add(win);
   evas_object_size_hint_weight_set(bx, EVAS_HINT_EXPAND, EVAS_HINT_EXPAND);
-  evas_object_size_hint_align_set(rect, EVAS_HINT_FILL, EVAS_HINT_FILL);
-  elm_table_pack(table, bx, 0, 0, 1, 1);
+  evas_object_size_hint_align_set(bx, EVAS_HINT_FILL, EVAS_HINT_FILL);
+  elm_grid_pack(grid, bx, 0, 0, 100, 100);
   evas_object_show(bx);
 
   en = elm_entry_add(bx);
@@ -108,12 +130,15 @@ void* login_new(Request_Login_Cb request_login_cb, void* data) {
   elm_object_part_text_set(en, "elm.guide", "Enter Your Login");
   evas_object_size_hint_weight_set(en, EVAS_HINT_EXPAND, EVAS_HINT_EXPAND);
   evas_object_size_hint_align_set(en, EVAS_HINT_FILL, EVAS_HINT_FILL);
-  //Evas_Coord x, y;
-  //evas_object_size_hint_min_get(en, &x, &y);
-  //printf(" size : %d, %d \n", x, y);
-  //evas_object_size_hint_min_set(en, 200, y);
   elm_box_pack_end(bx, en);
   evas_object_show(en);
+
+  evas_object_event_callback_add(bx, EVAS_CALLBACK_CHANGED_SIZE_HINTS, _changed_size_hints, grid);
+
+  Evas_Coord minw, minh, maxw, maxh;
+  evas_object_size_hint_min_get(en, &minw, &minh);
+  evas_object_size_hint_max_get(en, &maxw, &maxh);
+  printf(" hints, %d, %d, %d, %d \n", minw, minh, maxw, maxh);
 
   evas_object_smart_callback_add(
       en,
@@ -130,7 +155,6 @@ void* login_new(Request_Login_Cb request_login_cb, void* data) {
   elm_object_part_text_set(en, "elm.guide", "Enter Your Password");
   evas_object_size_hint_weight_set(en, EVAS_HINT_EXPAND, EVAS_HINT_EXPAND);
   evas_object_size_hint_align_set(en, EVAS_HINT_FILL, EVAS_HINT_FILL);
-  //evas_object_size_hint_min_set(en, 200, y);
   elm_box_pack_end(bx, en);
   evas_object_show(en);
 
