@@ -97,13 +97,6 @@ void* login_new(Request_Login_Cb request_login_cb, void* data) {
   
   win = window_get_or_create();
 
-  /*
-  bx = elm_box_add(win);
-  evas_object_size_hint_weight_set(bx, EVAS_HINT_EXPAND, EVAS_HINT_EXPAND);
-  elm_win_resize_object_add(win, bx);
-  evas_object_show(bx);
-  */
-
   table = elm_table_add(win);
   evas_object_size_hint_weight_set(table, EVAS_HINT_EXPAND, EVAS_HINT_EXPAND);
   elm_win_resize_object_add(win,table);
@@ -114,7 +107,6 @@ void* login_new(Request_Login_Cb request_login_cb, void* data) {
   evas_object_size_hint_align_set(grid, EVAS_HINT_FILL, 0.5);
   evas_object_size_hint_min_set(grid, LOGIN_ENTRY_SIZE_MIN, -1);
   evas_object_size_hint_max_set(grid, LOGIN_ENTRY_SIZE, -1);
-  //elm_box_pack_end(bx, grid);
   elm_table_pack(table, grid, 0, 0, 1, 1);
   evas_object_show(grid);
 
@@ -134,11 +126,6 @@ void* login_new(Request_Login_Cb request_login_cb, void* data) {
   evas_object_show(en);
 
   evas_object_event_callback_add(bx, EVAS_CALLBACK_CHANGED_SIZE_HINTS, _changed_size_hints, grid);
-
-  Evas_Coord minw, minh, maxw, maxh;
-  evas_object_size_hint_min_get(en, &minw, &minh);
-  evas_object_size_hint_max_get(en, &maxw, &maxh);
-  printf(" hints, %d, %d, %d, %d \n", minw, minh, maxw, maxh);
 
   evas_object_smart_callback_add(
       en,
