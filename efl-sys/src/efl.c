@@ -1,6 +1,9 @@
 #include "efl.h"
 #include <stdio.h>
 
+#define LOGIN_ENTRY_SIZE_MIN 50
+#define LOGIN_ENTRY_SIZE 200
+
 void efl_init()
 {
   elm_init(0,0);
@@ -76,16 +79,41 @@ show_password_check_changed_cb(void *data, Evas_Object *obj, void *event_info EI
   }
 }
 
+static void
+_changed_size_hints(void* data, Evas* e, Evas_Object* o, void *event_info)
+{
+  Evas_Coord minw, minh, maxw, maxh;
+  evas_object_size_hint_min_get(o, &minw, &minh);
+  evas_object_size_hint_max_get(o, &maxw, &maxh);
+  minw = minw > LOGIN_ENTRY_SIZE_MIN ? minw : LOGIN_ENTRY_SIZE_MIN;
+
+  evas_object_size_hint_min_set(data, minw, minh);
+}
+
 void* login_new(Request_Login_Cb request_login_cb, void* data) {
 
-  Eo *win, *bx, *en, *ck;
+  Eo *win, *table, *bx, *grid, *en, *ck;
   struct Login *log = calloc(1, sizeof(*log));
   
   win = window_get_or_create();
 
+  table = elm_table_add(win);
+  evas_object_size_hint_weight_set(table, EVAS_HINT_EXPAND, EVAS_HINT_EXPAND);
+  elm_win_resize_object_add(win,table);
+  evas_object_show(table);
+
+  grid = elm_grid_add(win);
+  evas_object_size_hint_weight_set(grid, EVAS_HINT_EXPAND, 0);
+  evas_object_size_hint_align_set(grid, EVAS_HINT_FILL, 0.5);
+  evas_object_size_hint_min_set(grid, LOGIN_ENTRY_SIZE_MIN, -1);
+  evas_object_size_hint_max_set(grid, LOGIN_ENTRY_SIZE, -1);
+  elm_table_pack(table, grid, 0, 0, 1, 1);
+  evas_object_show(grid);
+
   bx = elm_box_add(win);
   evas_object_size_hint_weight_set(bx, EVAS_HINT_EXPAND, EVAS_HINT_EXPAND);
-  elm_win_resize_object_add(win, bx);
+  evas_object_size_hint_align_set(bx, EVAS_HINT_FILL, EVAS_HINT_FILL);
+  elm_grid_pack(grid, bx, 0, 0, 100, 100);
   evas_object_show(bx);
 
   en = elm_entry_add(bx);
@@ -96,6 +124,8 @@ void* login_new(Request_Login_Cb request_login_cb, void* data) {
   evas_object_size_hint_align_set(en, EVAS_HINT_FILL, EVAS_HINT_FILL);
   elm_box_pack_end(bx, en);
   evas_object_show(en);
+
+  evas_object_event_callback_add(bx, EVAS_CALLBACK_CHANGED_SIZE_HINTS, _changed_size_hints, grid);
 
   evas_object_smart_callback_add(
       en,
@@ -134,7 +164,7 @@ void* login_new(Request_Login_Cb request_login_cb, void* data) {
   elm_box_pack_end(bx, ck);
   evas_object_show(ck);
 
-  evas_object_resize(win, 300, 100);
+  evas_object_resize(win, 700, 400);
   evas_object_show(win);
 
   log->cb = request_login_cb;
