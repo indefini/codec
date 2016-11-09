@@ -3,42 +3,56 @@ extern crate libc;
 use libc::{c_void, c_int, c_char, c_float};//, c_ulong, c_long, c_uint, c_uchar, size_t};
 
 //#[repr(C)]
-enum Eo {}
+enum Ui {}
 
-pub type LoginSuccessCb = extern fn(data : *const Eo, success : bool);
+//pub type LoginSuccessCb = extern fn(data : *const Ui, success : bool);
 
 extern "C" {
     fn efl_init();
     fn efl_run();
 
-    fn login_success(ob : *const Eo, b : bool);
-    fn login_new(on_request_login_cb : *const c_void, rust_data : *const c_void) -> *const Eo;
+    fn login_visible_set(b :bool);
+    fn loading_visible_set(b :bool);
+    fn chat_visible_set(b :bool);
+
+    fn login_success(ob : *const Ui, b : bool);
+    fn ui_new(on_request_login_cb : *const c_void, rust_data : *const c_void) -> *const Ui;
 }
 
-pub struct LoginWidget
+pub struct UiCon
 {
-    eo : *const Eo
+    ui : *const Ui,
 }
 
-impl LoginWidget
+impl UiCon
 {
     pub fn new(
-        cb : *const c_void,
-        core : *const c_void) -> LoginWidget
+        login_cb : *const c_void,
+        core : *const c_void) -> UiCon
     {
-        LoginWidget {
-            eo : unsafe { login_new(cb as *const _, core) }
+        UiCon {
+            ui : unsafe { ui_new(login_cb as *const _, core) }
         }
     }
 
     pub fn on_success(&self, success : bool)
     {
-        unsafe { login_success(self.eo, success); }
+        unsafe { login_success(self.ui, success); }
     }
 
-    pub fn set_visible(visible : bool)
+    pub fn set_login_visible(&self, visible : bool)
     {
-        panic!("TODO set visible");
+        unsafe { login_visible_set(visible); }
+    }
+
+    pub fn set_loading_visible(&self, visible : bool)
+    {
+        unsafe { loading_visible_set(visible); }
+    }
+
+    pub fn set_chat_visible(&self, visible : bool)
+    {
+        unsafe { chat_visible_set(visible); }
     }
 
 }

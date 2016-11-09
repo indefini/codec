@@ -3,23 +3,25 @@ use efl;
 use libc::{c_void, c_int, c_char, c_float};
 use std::ffi::CStr;
 use std::borrow::Cow;
+use std::thread;
+use std::sync::mpsc;
 
 pub struct App
 {
     core : Box<Core>,
-    login : efl::LoginWidget
 }
 
 impl App {
     pub fn new() -> App {
-        let core = Box::new(Core::new());
-        let login = efl::LoginWidget::new(
+        let mut core = Box::new(Core::new());
+        let ui_con = Box::new(efl::UiCon::new(
             request_login_from_ui as *const c_void,
-            &*core as *const _ as *const c_void);
+            &*core as *const _ as *const c_void));
+
+        core.ui_con = Some(ui_con);
 
         App {
             core : core,
-            login : login
         }
     }
 }
@@ -29,26 +31,43 @@ struct Core
 {
     //access_token : String,
     //rooms : room::Rooms,
+    ui_con : Option<Box<efl::UiCon>>
 }
 
 impl Core
 {
     fn new() -> Core
     {
-        Core {}
+        Core {ui_con : None}
     }
 
     fn request_login_from_ui(&self, user : &str, pass : &str)
     {
         println!("core : there was a request to login {}, {}", user, pass);
+        
+        let ui_con = self.ui_con.as_ref().unwrap();
+
+        ui_con.set_login_visible(false);
+        ui_con.set_loading_visible(true);
         //TODO
         //close the window,
         //show some loading icon
         //show "Login in" text
-        let login = login(user, pass);
+        
+        let (tx, rx) = mpsc::channel();
+        let users = user.to_owned();
+        let passs = pass.to_owned();
+        let child = thread::spawn(move || {
+            let res = loginstring(users, passs);
+            tx.send(res).unwrap();
+        });
+        //let res = child.join();
         //show "login success for 3sec"
         //show another text at the same time "syncing"
-        let sync = sync(&login.access_token);
+        //let sync = sync(&login.access_token);
+
+        //ui_con.set_loading_visible(false);
+        //ui_con.set_chat_visible(true);
 
         //or show login failed + show the pass window again
         // 
@@ -133,11 +152,16 @@ const GET_STATE_FILTER :&'static str = "/sync?filter={\"room\":{\"timeline\":{\"
  //'{"msgtype":"m.text", "body":"hello"}' "https://localhost:8448/_matrix/client/r0/rooms/%21asfLdzLnOdGRkdPZWu:localhost/send/m.room.message?access_token=YOUR_ACCESS_TOKEN"
  
 
-fn login(login : &str, pass : &str) -> Box<LoginResponse>
+fn loginstring(user : String, pass : String) -> Box<LoginResponse>
+{
+    login(user.as_str(), pass.as_str())
+}
+
+fn login(user : &str, pass : &str) -> Box<LoginResponse>
 {
     let obj = object!{
         "type" => "m.login.password",
-        "user" => login,
+        "user" => user,
         "password" => pass
     };
 

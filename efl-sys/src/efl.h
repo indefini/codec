@@ -13,7 +13,26 @@ struct Login {
 void* login_new(Request_Login_Cb request_login_cb, void* data);
 void login_success(Eina_Bool b);
 
+struct Loading {
+  Eo* object;
+  Eo* label;
+};
+
+struct Chat {
+  Eo* object;
+};
+
+struct Ui {
+  struct Login *login;
+  struct Loading *loading;
+  struct Chat* chat;
+};
+
+struct Ui* ui_new(Request_Login_Cb request_login_cb, void* data);
+
 void efl_init();
 void efl_run();
 
-
+void login_visible_set(Eina_Bool b);
+void loading_visible_set(Eina_Bool b);
+void chat_visible_set(Eina_Bool b);
