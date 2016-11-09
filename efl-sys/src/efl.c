@@ -39,6 +39,29 @@ Eo* window_get_or_create()
   return _win;
 }
 
+Evas_Object* loading_new(Evas_Object* win)
+{
+  Evas_Object *rect;
+  rect = evas_object_rectangle_add(evas_object_evas_get(win));
+  evas_object_size_hint_weight_set(rect, EVAS_HINT_EXPAND, EVAS_HINT_EXPAND);
+  evas_object_size_hint_align_set(rect, EVAS_HINT_FILL, EVAS_HINT_FILL);
+  evas_object_resize(rect, 100, 100);
+  evas_object_show(rect);
+
+   Elm_Transit *trans;
+
+   trans = elm_transit_add();
+   elm_transit_object_add(trans, rect);
+   elm_transit_repeat_times_set(trans, -1);
+
+   elm_transit_effect_rotation_add(trans, 0.0, 360.0);
+
+   elm_transit_duration_set(trans, 1.0);
+   elm_transit_go(trans);
+   return rect;
+}
+
+
 static void
 login_entry_activated_cb(void *data EINA_UNUSED, Evas_Object *obj, void *event_info EINA_UNUSED)
 {
@@ -170,6 +193,8 @@ void* login_new(Request_Login_Cb request_login_cb, void* data) {
   log->cb = request_login_cb;
   log->data = data;
   log->object = bx;
+
+  elm_box_pack_end(bx, loading_new(win));
 
   return log;
 }
