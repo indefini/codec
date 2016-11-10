@@ -100,8 +100,10 @@ fn main() {
     println!("rooms : {:?}", rooms);
     */
 
+
     efl::app_init();
-    core::App::new();
+    //must keep the app variable alive
+    let app = core::App::new();
     efl::app_run();
 
 }

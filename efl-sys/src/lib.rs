@@ -7,12 +7,17 @@ enum Ui {}
 enum Ecore_Animator {}
 
 //pub type LoginSuccessCb = extern fn(data : *const Ui, success : bool);
+pub type SimpleDataCb = extern fn(data : *const c_void);
 pub type AnimatorCallback = extern fn(data : *const c_void) -> bool;
 
 extern "C" {
     fn efl_init();
     fn efl_run();
     fn ecore_animator_add(cb : AnimatorCallback, data : *const c_void);
+
+    fn ecore_thread_main_loop_begin();
+    fn ecore_thread_main_loop_end();
+    fn ecore_main_loop_thread_safe_call_async(cb : SimpleDataCb, data : *const c_void);
 
     fn login_visible_set(b :bool);
     fn loading_visible_set(b :bool);
@@ -93,4 +98,43 @@ pub fn add_anim_fn<F>(f : F) where F : Fn() -> bool
   }
 }
 
+pub fn add_async<F>(f : F) where F : Fn()
+{
+    let fp = &f as *const _ as *mut c_void;
+    unsafe { ecore_main_loop_thread_safe_call_async(
+            wrapper::<F>, fp);
+    }
+
+    extern fn wrapper<F>(f : *const c_void)
+      where F: Fn() {
+    let opt_closure = unsafe { (f as *const F).as_ref() };
+    unsafe {
+        return opt_closure.unwrap()();
+    }
+  }
+}
+
+
+pub fn main_loop_begin() {
+    unsafe { ecore_thread_main_loop_begin(); }
+}
+
+pub fn main_loop_end() {
+    unsafe { ecore_thread_main_loop_end(); }
+}
+
+pub fn set_login_visible(visible : bool)
+{
+    unsafe { login_visible_set(visible); }
+}
+
+pub fn set_loading_visible(visible : bool)
+{
+    unsafe { loading_visible_set(visible); }
+}
+
+pub fn set_chat_visible(visible : bool)
+{
+    unsafe { chat_visible_set(visible); }
+}
 

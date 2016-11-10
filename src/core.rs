@@ -33,47 +33,50 @@ struct Core
     //access_token : String,
     //rooms : room::Rooms,
     ui_con : Option<Box<efl::UiCon>>,
-    log : Arc<Mutex<Option<LoginResponse>>>
+    log : Arc<Mutex<Option<Box<LoginResponse>>>>,
+    //tx : mpsc::Sender<Box<LoginResponse>>,
+    //rx : mpsc::Receiver<Box<LoginResponse>>,
 
 }
 
 impl Core
 {
-    fn new() -> Core
+    pub fn new() -> Core
     {
+        //let (tx, rx) = mpsc::channel();
+
         Core {
             ui_con : None,
-            log : Arc::new(Mutex::new(None))
+            log : Arc::new(Mutex::new(None)),
+            //tx : tx,
+            //rx : rx
         }
     }
 
-    fn request_login_from_ui(&self, user : &str, pass : &str)
+    pub fn request_login_from_ui(&self, user : &str, pass : &str)
     {
         println!("core : there was a request to login {}, {}", user, pass);
         
-        //let ui_con = self.ui_con.as_ref().unwrap();
+        let ui_con = self.ui_con.as_ref().unwrap();
 
-        //ui_con.set_login_visible(false);
-        //ui_con.set_loading_visible(true);
+        //efl::set_login_visible(false);
+        ui_con.set_login_visible(false);
+        ui_con.set_loading_visible(true);
         //TODO
         //close the window,
         //show some loading icon
         //show "Login in" text
         
-        //let (tx, rx) = mpsc::channel();
         let users = user.to_owned();
         let passs = pass.to_owned();
         let mmm = self.log.clone();
-        let child = thread::spawn(move || {
-            let res = loginstring(users, passs);
-            //tx.send(res).unwrap();
-            let mut log = mmm.lock().unwrap();
-             *log = Some(*res);
-        });
+        let (tx,rx) = mpsc::channel();
+
 
         /*
         efl::add_anim_fn(move || {
-            if let Ok(res) = self.log.try_lock()
+            //if let Ok(res) = self.log.try_lock()
+            if let Ok(res) = rx.try_recv()
             {
             println!("done");
                 false
@@ -84,6 +87,45 @@ impl Core
             true
             }
         });
+        */
+
+        let child = thread::spawn(move || {
+            let res = loginstring(users, passs);
+            if tx.send(res).is_err() {
+                println!("could not send...");
+            }
+            //let mut log = mmm.lock().unwrap();
+             // *log = Some(res);
+        });
+
+        thread::spawn(move || {
+            loop {
+                if let Ok(res) = rx.try_recv()
+                {
+                    println!("done : {}", res.access_token);
+                    //efl::main_loop_begin();
+                    efl::add_async(|| {
+                    efl::set_loading_visible(false);
+                    efl::set_chat_visible(true);
+                    });
+                    //efl::main_loop_end();
+                    break;
+                }
+                else
+                {
+                    println!("dance");
+                }
+            }
+        });
+
+        /*
+            let res = loginstring(users, passs);
+            if tx.send(res).is_err() {
+                println!("could not send... why");
+            }
+            */
+
+        /*
         */
 
         //let res = child.join();
