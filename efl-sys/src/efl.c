@@ -281,4 +281,8 @@ void chat_visible_set(Eina_Bool b)
   _visible_set(_ui->chat->object, b);
 }
 
+//void anim_add(void (*cb)(void*, void*), void* user_data)
+//{
+  //ecore_animator_add(cb, user_data);
+//}
 

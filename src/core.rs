@@ -5,6 +5,7 @@ use std::ffi::CStr;
 use std::borrow::Cow;
 use std::thread;
 use std::sync::mpsc;
+use std::sync::{RwLock, Arc, Mutex};
 
 pub struct App
 {
@@ -31,36 +32,60 @@ struct Core
 {
     //access_token : String,
     //rooms : room::Rooms,
-    ui_con : Option<Box<efl::UiCon>>
+    ui_con : Option<Box<efl::UiCon>>,
+    log : Arc<Mutex<Option<LoginResponse>>>
+
 }
 
 impl Core
 {
     fn new() -> Core
     {
-        Core {ui_con : None}
+        Core {
+            ui_con : None,
+            log : Arc::new(Mutex::new(None))
+        }
     }
 
     fn request_login_from_ui(&self, user : &str, pass : &str)
     {
         println!("core : there was a request to login {}, {}", user, pass);
         
-        let ui_con = self.ui_con.as_ref().unwrap();
+        //let ui_con = self.ui_con.as_ref().unwrap();
 
-        ui_con.set_login_visible(false);
-        ui_con.set_loading_visible(true);
+        //ui_con.set_login_visible(false);
+        //ui_con.set_loading_visible(true);
         //TODO
         //close the window,
         //show some loading icon
         //show "Login in" text
         
-        let (tx, rx) = mpsc::channel();
+        //let (tx, rx) = mpsc::channel();
         let users = user.to_owned();
         let passs = pass.to_owned();
+        let mmm = self.log.clone();
         let child = thread::spawn(move || {
             let res = loginstring(users, passs);
-            tx.send(res).unwrap();
+            //tx.send(res).unwrap();
+            let mut log = mmm.lock().unwrap();
+             *log = Some(*res);
         });
+
+        /*
+        efl::add_anim_fn(move || {
+            if let Ok(res) = self.log.try_lock()
+            {
+            println!("done");
+                false
+            }
+            else
+            {
+            println!("dance");
+            true
+            }
+        });
+        */
+
         //let res = child.join();
         //show "login success for 3sec"
         //show another text at the same time "syncing"
