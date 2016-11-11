@@ -1,6 +1,7 @@
 extern crate libc;
 
 use libc::{c_void, c_int, c_char, c_float};//, c_ulong, c_long, c_uint, c_uchar, size_t};
+use std::ffi::CString;
 
 //#[repr(C)]
 enum Ui {}
@@ -22,6 +23,8 @@ extern "C" {
     fn login_visible_set(b :bool);
     fn loading_visible_set(b :bool);
     fn chat_visible_set(b :bool);
+
+    fn loading_text_set(t : *const c_char);
 
     fn login_success(b : bool);
     fn ui_new(on_request_login_cb : *const c_void, rust_data : *const c_void) -> *const Ui;
@@ -63,6 +66,11 @@ impl UiCon
     pub fn set_chat_visible(&self, visible : bool)
     {
         unsafe { chat_visible_set(visible); }
+    }
+
+    pub fn set_loading_text(&self, text : &str)
+    {
+        unsafe { loading_text_set(CString::new(text).unwrap().as_ptr()); }
     }
 
 }

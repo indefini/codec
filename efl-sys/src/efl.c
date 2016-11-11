@@ -72,7 +72,7 @@ struct Loading* loading_new(Evas_Object* win)
   elm_transit_go(trans);
 
   label = elm_label_add(win);
-  elm_object_text_set(label, "<style=outline_soft_shadow outline_color=#1a0a1a font_size=10>syncing</>");
+  elm_object_text_set(label, "<style=outline_soft_shadow outline_color=#1a0a1a font_size=10>login</>");
   evas_object_show(label);
   elm_box_pack_end(box, label);
 
@@ -280,6 +280,12 @@ void chat_visible_set(Eina_Bool b)
 {
   _visible_set(_ui->chat->object, b);
 }
+
+void loading_text_set(const char* text)
+{
+  elm_object_text_set(_ui->loading->label, text);
+}
+
 
 //void anim_add(void (*cb)(void*, void*), void* user_data)
 //{

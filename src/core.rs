@@ -71,8 +71,6 @@ impl Core
         };
 
         //TODO
-        //close the window,
-        //show some loading icon
         //show "Login in" text
         
         let users = user.to_owned();
@@ -98,8 +96,8 @@ impl Core
         */
 
         let child = thread::spawn(move || {
-            let login = loginstring(users, passs);
-            let res = sync(&login.access_token);
+            let res = loginstring(users, passs);
+            //let res = sync(&login.access_token);
             if tx.send(res).is_err() {
                 println!("could not send...");
             }
@@ -109,9 +107,26 @@ impl Core
 
         thread::spawn(move || {
             loop {
-                if let Ok(res) = rx.try_recv()
-                {
+                if let Ok(login) = rx.try_recv() {
                     efl::main_loop_begin();
+                    if let Ok(ui_con) = mu.lock() {
+                        ui_con.set_loading_text("syncing");
+                    }
+                    efl::main_loop_end();
+
+                    let (synctx,syncrx) = mpsc::channel();
+                    
+                    thread::spawn(move || {
+                        println!("syncing started!!!");
+                        let res = sync(&login.access_token);
+                        synctx.send(res).unwrap();
+                    });
+
+                    thread::spawn(move || {
+                        loop {
+                        if let Ok(sync) = syncrx.try_recv() {
+                            println!("syncing over!!!");
+                            efl::main_loop_begin();
                     //efl::add_async(|| {
                     //efl::set_loading_visible(false);
                     //efl::set_chat_visible(true);
@@ -120,9 +135,16 @@ impl Core
                     ui_con.set_loading_visible(false);
                     ui_con.set_chat_visible(true);
                     }
+
+                    efl::main_loop_end();
+                    break;
+
+                        }
+                        }
+
+                    });
                     
                     //});
-                    efl::main_loop_end();
                     break;
                 }
                 else
