@@ -97,83 +97,58 @@ impl Core
 
         let child = thread::spawn(move || {
             let res = loginstring(users, passs);
-            //let res = sync(&login.access_token);
-            if tx.send(res).is_err() {
-                println!("could not send...");
-            }
-            //let mut log = mmm.lock().unwrap();
-             // *log = Some(res);
+            tx.send(res).unwrap();
         });
 
         thread::spawn(move || {
             loop {
                 if let Ok(login) = rx.try_recv() {
-                    efl::main_loop_begin();
-                    if let Ok(ui_con) = mu.lock() {
-                        ui_con.set_loading_text("syncing");
-                    }
-                    efl::main_loop_end();
-
-                    let (synctx,syncrx) = mpsc::channel();
-                    
-                    thread::spawn(move || {
-                        println!("syncing started!!!");
-                        let res = sync(&login.access_token);
-                        synctx.send(res).unwrap();
-                    });
-
-                    thread::spawn(move || {
-                        loop {
-                        if let Ok(sync) = syncrx.try_recv() {
-                            println!("syncing over!!!");
-                            efl::main_loop_begin();
-                    //efl::add_async(|| {
-                    //efl::set_loading_visible(false);
-                    //efl::set_chat_visible(true);
-                    
-                    if let Ok(ui_con) = mu.lock() {
-                    ui_con.set_loading_visible(false);
-                    ui_con.set_chat_visible(true);
-                    }
-
-                    efl::main_loop_end();
+                    start_sync_task(mu.clone(), login);
                     break;
-
-                        }
-                        }
-
-                    });
-                    
-                    //});
-                    break;
-                }
-                else
-                {
                 }
             }
         });
 
-        /*
-            let res = loginstring(users, passs);
-            if tx.send(res).is_err() {
-                println!("could not send... why");
-            }
-            */
-
-        /*
-        */
-
-        //let res = child.join();
-        //show "login success for 3sec"
-        //show another text at the same time "syncing"
-        //let sync = sync(&login.access_token);
-
-        //ui_con.set_loading_visible(false);
-        //ui_con.set_chat_visible(true);
-
         //or show login failed + show the pass window again
         // 
     }
+}
+
+fn start_sync_task(mu : UiCon, login : Box<LoginResponse>)
+{
+    efl::main_loop_begin();
+    if let Ok(ui_con) = mu.lock() {
+        ui_con.set_loading_text("syncing");
+    }
+    efl::main_loop_end();
+
+    let (synctx,syncrx) = mpsc::channel();
+
+    thread::spawn(move || {
+        println!("syncing started!!!");
+        let res = sync(&login.access_token);
+        synctx.send(res).unwrap();
+    });
+
+    thread::spawn(move || {
+        loop {
+            if let Ok(sync) = syncrx.try_recv() {
+                println!("syncing over!!!");
+                efl::main_loop_begin();
+                //efl::add_async(|| {
+                //efl::set_loading_visible(false);
+                //efl::set_chat_visible(true);
+
+                if let Ok(ui_con) = mu.lock() {
+                    ui_con.set_loading_visible(false);
+                    ui_con.set_chat_visible(true);
+                }
+
+                efl::main_loop_end();
+                break;
+            }
+        }
+    });
 }
 
 extern fn request_login_from_ui(
