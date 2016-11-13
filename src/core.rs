@@ -138,6 +138,8 @@ fn start_sync_task(mu : UiCon, login : Box<LoginResponse>)
                 //efl::add_async(|| {
                 //efl::set_loading_visible(false);
                 //efl::set_chat_visible(true);
+                
+                let mut rooms = get_rooms(&sync);
 
                 if let Ok(ui_con) = mu.lock() {
                     ui_con.set_loading_visible(false);
@@ -147,13 +149,41 @@ fn start_sync_task(mu : UiCon, login : Box<LoginResponse>)
                 }
 
                 efl::main_loop_end();
+                
+
                 break;
             }
         }
     });
 }
 
-fn get_rooms_info(access_token : &str, sync : Box<Sync>) -> room::Rooms
+fn get_rooms(sync : &Box<Sync>) -> room::Rooms
+{
+    let mut r = HashMap::new();
+    for (id, room) in sync.rooms.join.iter() {
+
+        let mut name = None;
+
+        for e in room.state.events.iter() {
+            if e.kind == "m.room.name" {
+                if let Some(ref n) = e.content.name {
+                    name = Some(n.clone());
+                }
+                break;
+            }
+        }
+
+        if name.is_none() {
+            name = Some("room has no name".to_owned());
+        }
+
+        r.insert(id.clone(), room::Room::new(&name.unwrap()));
+    }
+
+    r
+}
+
+fn get_rooms_info(access_token : &str, sync : &Box<Sync>) -> room::Rooms
 {
     let mut rooms : room::Rooms =  { 
         let mut r = HashMap::new();
