@@ -20,6 +20,8 @@ struct Loading {
 
 struct Chat {
   Eo* object;
+  Eo* box;
+  Eina_List *lines;
 };
 
 struct Ui {
@@ -35,4 +37,7 @@ void efl_run();
 
 void login_visible_set(Eina_Bool b);
 void loading_visible_set(Eina_Bool b);
+
 void chat_visible_set(Eina_Bool b);
+void chat_text_add(const char *user, const char *time, const char *message);
+

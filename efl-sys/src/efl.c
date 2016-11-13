@@ -239,7 +239,10 @@ struct Chat* chat_new(Evas_Object* win)
   elm_object_text_set(label, "chat room.........");
   elm_box_pack_end(bx, label);
   evas_object_show(label);
+
   chat->object = bx;
+  chat->box = bx;
+
   return chat;
 }
 
@@ -292,3 +295,30 @@ void loading_text_set(const char* text)
   //ecore_animator_add(cb, user_data);
 //}
 
+void chat_text_add(const char *user, const char *time, const char *message)
+{
+  Eo* bx_parent = _ui->chat->box;
+
+  Eo* bx_msg = elm_box_add(bx_parent);
+  evas_object_size_hint_weight_set(bx_msg, EVAS_HINT_EXPAND, EVAS_HINT_EXPAND);
+  evas_object_size_hint_align_set(bx_msg, EVAS_HINT_FILL, EVAS_HINT_FILL);
+  elm_box_horizontal_set(bx_msg,  EINA_TRUE);
+  elm_box_pack_end(bx_parent, bx_msg);
+  evas_object_show(bx_msg);
+
+  Eo* label = elm_label_add(bx_msg);
+  elm_object_text_set(label, user);
+  elm_box_pack_end(bx_msg, label);
+  evas_object_show(label);
+
+  label = elm_label_add(bx_msg);
+  elm_object_text_set(label, time);
+  elm_box_pack_end(bx_msg, label);
+  evas_object_show(label);
+
+  label = elm_label_add(bx_msg);
+  elm_object_text_set(label, message);
+  elm_box_pack_end(bx_msg, label);
+  evas_object_show(label);
+
+}

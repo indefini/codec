@@ -28,6 +28,8 @@ extern "C" {
 
     fn login_success(b : bool);
     fn ui_new(on_request_login_cb : *const c_void, rust_data : *const c_void) -> *const Ui;
+
+    fn chat_text_add(user : *const c_char, msg: *const c_char, time : *const c_char);
 }
 
 
@@ -71,6 +73,16 @@ impl UiCon
     pub fn set_loading_text(&self, text : &str)
     {
         unsafe { loading_text_set(CString::new(text).unwrap().as_ptr()); }
+    }
+
+    pub fn add_chat_text(&self, user :&str, time : &str, text : &str)
+    {
+        unsafe { 
+            chat_text_add(
+                CString::new(user).unwrap().as_ptr(),
+                CString::new(time).unwrap().as_ptr(),
+                CString::new(text).unwrap().as_ptr());
+        }
     }
 
 }

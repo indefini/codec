@@ -142,6 +142,8 @@ fn start_sync_task(mu : UiCon, login : Box<LoginResponse>)
                 if let Ok(ui_con) = mu.lock() {
                     ui_con.set_loading_visible(false);
                     ui_con.set_chat_visible(true);
+                    ui_con.add_chat_text("chris", "14:00", "yoyo");
+                    ui_con.add_chat_text("chris", "14:00", "yoyo");
                 }
 
                 efl::main_loop_end();
