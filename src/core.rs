@@ -153,6 +153,71 @@ fn start_sync_task(mu : UiCon, login : Box<LoginResponse>)
     });
 }
 
+fn get_rooms_info(access_token : &str, sync : Box<Sync>) -> room::Rooms
+{
+    let mut rooms : room::Rooms =  { 
+        let mut r = HashMap::new();
+        for (id, room) in sync.rooms.join.iter() {
+
+            let mut name = None;
+            
+            for e in room.state.events.iter() {
+                if e.kind == "m.room.name" {
+                    if let Some(ref n) = e.content.name {
+                        name = Some(n.clone());
+                    }
+                    break;
+                }
+            }
+
+            if name.is_none() {
+                name = Some("room has no name".to_owned());
+            }
+
+            r.insert(id.clone(), room::Room::new(&name.unwrap()));
+        }
+        r
+    };
+
+    let room_messages : HashMap<String, Box<Messages>> = 
+        sync.rooms.join.iter().map(|(id, room)|
+            (id.clone(), get_messages(
+                access_token,
+                id,
+                &room.timeline.prev_batch))).collect();
+
+    for (room_id, messages) in &room_messages {
+        let mut room = rooms.get_mut(room_id).unwrap();
+        for e in &messages.chunk {
+            if e.kind == "m.room.message" {
+                let msgtype = if let Some(ref t) = e.content.msgtype {
+                    t.clone()
+                }
+                else {
+                    break;
+                };
+
+                let body = if let Some(ref body) = e.content.body {
+                    body.clone()
+                }
+                else {
+                        break
+                };
+
+                let m = match msgtype.as_str() {
+                    "m.text" => room::Message::Text(body),
+                    _ => break
+                };
+
+                room.messages.push(m);
+            }
+        }
+    }
+
+    rooms
+}
+
+
 extern fn request_login_from_ui(
     data : *const c_void,
     user : *const c_char,

@@ -307,16 +307,19 @@ void chat_text_add(const char *user, const char *time, const char *message)
   evas_object_show(bx_msg);
 
   Eo* label = elm_label_add(bx_msg);
+  elm_object_text_set(label, time);
+  evas_object_size_hint_align_set(label, 0, EVAS_HINT_FILL);
+  elm_box_pack_end(bx_msg, label);
+  evas_object_show(label);
+
+  label = elm_label_add(bx_msg);
+  evas_object_size_hint_align_set(label, 0, EVAS_HINT_FILL);
   elm_object_text_set(label, user);
   elm_box_pack_end(bx_msg, label);
   evas_object_show(label);
 
   label = elm_label_add(bx_msg);
-  elm_object_text_set(label, time);
-  elm_box_pack_end(bx_msg, label);
-  evas_object_show(label);
-
-  label = elm_label_add(bx_msg);
+  evas_object_size_hint_align_set(label, 0, EVAS_HINT_FILL);
   elm_object_text_set(label, message);
   elm_box_pack_end(bx_msg, label);
   evas_object_show(label);
