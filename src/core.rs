@@ -140,6 +140,7 @@ fn start_sync_task(mu : UiCon, login : Box<LoginResponse>)
                 //efl::set_chat_visible(true);
                 
                 let mut rooms = get_rooms(&sync);
+                //start_messages_task(rooms
 
                 if let Ok(ui_con) = mu.lock() {
                     ui_con.set_loading_visible(false);
@@ -177,38 +178,51 @@ fn get_rooms(sync : &Box<Sync>) -> room::Rooms
             name = Some("room has no name".to_owned());
         }
 
-        r.insert(id.clone(), room::Room::new(&name.unwrap()));
+        let ro = room::Room::new(
+            id,
+            &name.unwrap(),
+            &room.timeline.prev_batch
+            );
+
+        r.insert(id.clone(), ro);
     }
 
     r
 }
 
-fn get_rooms_info(access_token : &str, sync : &Box<Sync>) -> room::Rooms
+fn get_room_messages(access_token : &str, room : &mut room::Room)
 {
-    let mut rooms : room::Rooms =  { 
-        let mut r = HashMap::new();
-        for (id, room) in sync.rooms.join.iter() {
+    let messages = get_messages(
+                access_token,
+                room.id(),
+                &room.prev_batch);
 
-            let mut name = None;
-            
-            for e in room.state.events.iter() {
-                if e.kind == "m.room.name" {
-                    if let Some(ref n) = e.content.name {
-                        name = Some(n.clone());
-                    }
-                    break;
-                }
+    for e in &messages.chunk {
+        if e.kind == "m.room.message" {
+            let msgtype = if let Some(ref t) = e.content.msgtype {
+                t.clone()
             }
+            else {
+                break;
+            };
 
-            if name.is_none() {
-                name = Some("room has no name".to_owned());
+            let body = if let Some(ref body) = e.content.body {
+                body.clone()
             }
+            else {
+                break
+            };
 
-            r.insert(id.clone(), room::Room::new(&name.unwrap()));
+            let m = match msgtype.as_str() {
+                "m.text" => room::Message::Text(body),
+                _ => break
+            };
+
+            room.messages.push(m);
         }
-        r
-    };
+    }
 
+    /*
     let room_messages : HashMap<String, Box<Messages>> = 
         sync.rooms.join.iter().map(|(id, room)|
             (id.clone(), get_messages(
@@ -245,6 +259,7 @@ fn get_rooms_info(access_token : &str, sync : &Box<Sync>) -> room::Rooms
     }
 
     rooms
+    */
 }
 
 
