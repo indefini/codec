@@ -124,6 +124,8 @@ fn start_sync_task(mu : UiCon, login : Box<LoginResponse>)
 
     let (synctx,syncrx) = mpsc::channel();
 
+    let access_token = login.access_token.clone();
+
     thread::spawn(move || {
         println!("syncing started!!!");
         let res = sync(&login.access_token);
@@ -140,17 +142,19 @@ fn start_sync_task(mu : UiCon, login : Box<LoginResponse>)
                 //efl::set_chat_visible(true);
                 
                 let mut rooms = get_rooms(&sync);
-                //start_messages_task(rooms
 
+                
                 if let Ok(ui_con) = mu.lock() {
                     ui_con.set_loading_visible(false);
                     ui_con.set_chat_visible(true);
-                    ui_con.add_chat_text("chris", "14:00", "yoyo");
-                    ui_con.add_chat_text("chris", "14:00", "yoyo");
                 }
 
                 efl::main_loop_end();
-                
+
+                for (id, room) in &rooms {
+
+                    start_messages_task(mu.clone(), &access_token, room);
+                }
 
                 break;
             }
@@ -190,14 +194,81 @@ fn get_rooms(sync : &Box<Sync>) -> room::Rooms
     r
 }
 
-fn get_room_messages(access_token : &str, room : &mut room::Room)
+fn start_messages_task(
+    mu : UiCon, 
+    access_token : &str,
+    room : &room::Room)
 {
-    let messages = get_messages(
-                access_token,
-                room.id(),
-                &room.prev_batch);
+    efl::main_loop_begin();
+    if let Ok(ui_con) = mu.lock() {
+        ui_con.set_loading_text(&("getting messages for".to_owned() + &room.name));
+    }
+    efl::main_loop_end();
 
-    for e in &messages.chunk {
+    let (tx, rx) = mpsc::channel();
+
+    let room_id = room.id().to_owned();
+    let prev_batch = room.prev_batch.clone();
+
+    let room_name = room.name.clone();
+    let access_token = access_token.to_owned();
+
+    thread::spawn(move || {
+        println!("get messages for {}", room_name);
+        let res = get_room_messages(&access_token, &room_id, &prev_batch);
+        tx.send(res).unwrap();
+    });
+
+    let room_name = room.name.clone();
+    thread::spawn(move || {
+        loop {
+            if let Ok(res) = rx.try_recv() {
+                println!("get messages for '{}' over!!!", room_name);
+                efl::main_loop_begin();
+
+                if let Ok(ui_con) = mu.lock() {
+                    if room_name == "mikuroom" {
+                        ui_con.set_loading_visible(false);
+                        ui_con.set_chat_visible(true);
+                        add_chat_messages(&*ui_con, res);
+                    }
+                }
+
+                efl::main_loop_end();
+
+                break;
+            }
+        }
+    });
+
+}
+
+fn add_chat_messages(uicon : &efl::UiCon, messages : Vec<room::Message>)
+{
+    for m in &messages {
+        match *m {
+            room::Message::Text(ref t) => {
+                uicon.add_chat_text("user", "time", t);
+            },
+            _ => {}
+
+        }
+    }
+}
+
+fn get_room_messages(
+    access_token : &str,
+    room_id : &str,
+    prev_batch : &str) -> Vec<room::Message>
+{
+    let msg_res = get_messages(
+                access_token,
+                room_id,
+                prev_batch);
+
+    let mut messages = Vec::new();
+
+    for e in &msg_res.chunk {
         if e.kind == "m.room.message" {
             let msgtype = if let Some(ref t) = e.content.msgtype {
                 t.clone()
@@ -218,9 +289,11 @@ fn get_room_messages(access_token : &str, room : &mut room::Room)
                 _ => break
             };
 
-            room.messages.push(m);
+            messages.push(m);
         }
     }
+
+    messages
 
     /*
     let room_messages : HashMap<String, Box<Messages>> = 
