@@ -29,7 +29,26 @@ impl Room {
 }
 
 #[derive(Debug)]
-pub enum Message
+pub struct Message
+{
+    pub user : String,
+    pub time : String,
+    pub content : Content
+}
+
+impl Message {
+    pub fn new(user : &str, time : &str, content : Content ) -> Message {
+        Message {
+            user : user.to_owned(),
+            time : time.to_owned(),
+            content : content
+        }
+    }
+}
+
+
+#[derive(Debug)]
+pub enum Content
 {
     Text(String),
     Image(String)

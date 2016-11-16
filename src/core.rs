@@ -246,9 +246,9 @@ fn start_messages_task(
 fn add_chat_messages(uicon : &efl::UiCon, messages : Vec<room::Message>)
 {
     for m in &messages {
-        match *m {
-            room::Message::Text(ref t) => {
-                uicon.add_chat_text("user", "time", t);
+        match m.content {
+            room::Content::Text(ref t) => {
+                uicon.add_chat_text(&m.user, &m.time, t);
             },
             _ => {}
 
@@ -284,11 +284,12 @@ fn get_room_messages(
                 break
             };
 
-            let m = match msgtype.as_str() {
-                "m.text" => room::Message::Text(body),
+            let c = match msgtype.as_str() {
+                "m.text" => room::Content::Text(body),
                 _ => break
             };
 
+            let m = room::Message::new("user", "time", c);
             messages.push(m);
         }
     }
