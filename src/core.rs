@@ -289,7 +289,14 @@ fn get_room_messages(
                 _ => break
             };
 
-            let m = room::Message::new("user", "time", c);
+            let sender = if let Some(ref s) = e.sender {
+                s.clone()
+            }
+            else {
+                break;
+            };
+
+            let m = room::Message::new(&sender, "time", c);
             messages.push(m);
         }
     }
