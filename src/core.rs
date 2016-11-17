@@ -155,9 +155,8 @@ fn start_sync_task(mu : UiCon, login : Box<LoginResponse>)
                 efl::main_loop_end();
 
                 for (id, room) in &rooms {
-
-                    if room.name == "mikuroom" {
-                    start_messages_task(mu.clone(), &access_token, room);
+                    if room.read().unwrap().name == "mikuroom" {
+                    start_messages_task(mu.clone(), &access_token, room.clone());
                     }
                 }
 
@@ -173,13 +172,23 @@ fn get_rooms(sync : &Box<Sync>) -> room::Rooms
     for (id, room) in sync.rooms.join.iter() {
 
         let mut name = None;
+        let mut messages = Vec::new();
 
         for e in room.state.events.iter() {
-            if e.kind == "m.room.name" {
-                if let Some(ref n) = e.content.name {
-                    name = Some(n.clone());
+            match &*e.kind {
+                "m.room.name" => {
+                    if let Some(ref n) = e.content.name {
+                        name = Some(n.clone());
+                    }
+                },
+                "m.room.message" => {
+                    if let Some(m) = get_message_from_event(e) {
+                        messages.push(m);
+                    }
+
+                },
+                _ => {
                 }
-                break;
             }
         }
 
@@ -187,13 +196,15 @@ fn get_rooms(sync : &Box<Sync>) -> room::Rooms
             name = Some("room has no name".to_owned());
         }
 
-        let ro = room::Room::new(
+        let mut ro = room::Room::new(
             id,
             &name.unwrap(),
             &room.timeline.prev_batch
             );
 
-        r.insert(id.clone(), ro);
+        ro.messages = messages;
+
+        r.insert(id.clone(), Arc::new(RwLock::new(ro)));
     }
 
     r
@@ -202,33 +213,44 @@ fn get_rooms(sync : &Box<Sync>) -> room::Rooms
 fn start_messages_task(
     mu : UiCon, 
     access_token : &str,
-    room : &room::Room)
+    room : room::SyncRoom)
 {
-    efl::main_loop_begin();
-    if let Ok(ui_con) = mu.lock() {
-        ui_con.set_loading_text(&("getting messages for".to_owned() + &room.name));
-    }
-    efl::main_loop_end();
+    let (room_id, prev_batch, room_name) =
+    {
+        let room = room.read().unwrap();
+        efl::main_loop_begin();
+        if let Ok(ui_con) = mu.lock() {
+            ui_con.set_loading_text(&("getting messages for".to_owned() + &room.name));
+        }
+        efl::main_loop_end();
+
+
+        //let room_id = room.id().to_owned();
+        //let prev_batch = room.prev_batch.clone();
+        //let room_name = room.name.clone();
+        //
+        (room.id().to_owned(), room.prev_batch.clone(), room.name.clone())
+    };
 
     let (tx, rx) = mpsc::channel();
-
-    let room_id = room.id().to_owned();
-    let prev_batch = room.prev_batch.clone();
-
-    let room_name = room.name.clone();
     let access_token = access_token.to_owned();
 
-    thread::Builder::new().name(room_name.clone()).spawn(move || {
-    //thread::spawn(move || {
-        println!("get messages for {}", room_name);
-        let res = get_room_messages(&access_token, &room_id, &prev_batch);
-        tx.send(res).unwrap();
-    });
+    {
+        let room_name = room_name.clone();
 
-    let room_name = room.name.clone();
+        thread::Builder::new().name(room_name.clone()).spawn(move || {
+            //thread::spawn(move || {
+            println!("get messages for {}", room_name);
+            let res = get_room_messages(&access_token, &room_id, &prev_batch);
+            tx.send(res).unwrap();
+        });
+    }
+
     thread::spawn(move || {
         loop {
-            if let Ok(res) = rx.try_recv() {
+            if let Ok(ref mut res) = rx.try_recv() {
+                let mut room = room.write().unwrap();
+                room.messages.append(res);
                 println!("get messages for '{}' over!!!", room_name);
                 efl::main_loop_begin();
 
@@ -236,7 +258,7 @@ fn start_messages_task(
                     if room_name == "mikuroom" {
                         ui_con.set_loading_visible(false);
                         ui_con.set_chat_visible(true);
-                        add_chat_messages(&*ui_con, res);
+                        add_chat_messages(&*ui_con, &room.messages);
                     }
                 }
 
@@ -249,9 +271,9 @@ fn start_messages_task(
 
 }
 
-fn add_chat_messages(uicon : &efl::UiCon, messages : Vec<room::Message>)
+fn add_chat_messages(uicon : &efl::UiCon, messages : &Vec<room::Message>)
 {
-    for m in &messages {
+    for m in messages {
         match m.content {
             room::Content::Text(ref t) => {
                 uicon.add_chat_text(&m.user, &m.time, t);
@@ -272,57 +294,12 @@ fn get_room_messages(
                 room_id,
                 prev_batch);
 
-    println!("MESSSSSSSSSSSSSSSSSS : {:?}", msg_res);
+    //println!("MESSSSSSSSSSSSSSSSSS : {:?}", msg_res);
 
     let mut messages = Vec::new();
 
     for e in &msg_res.chunk {
-        if e.kind == "m.room.message" {
-            let msgtype = if let Some(ref t) = e.content.msgtype {
-                t.clone()
-            }
-            else {
-                println!("i____no msgtype... : {:?}", e);
-                continue;
-            };
-
-            let body = if let Some(ref body) = e.content.body {
-                body.clone()
-            }
-            else {
-                println!("no body");
-                continue
-            };
-
-            let c = match msgtype.as_str() {
-                "m.text" => room::Content::Text(body),
-                _ => {
-                    println!("_____________ msgtype is not text : {}", msgtype );
-                    continue;
-                }
-            };
-
-            let sender = if let Some(ref s) = e.sender {
-                s.clone()
-            }
-            else {
-                println!("no sender");
-                continue;
-            };
-
-            let time = if let Some(ost) = e.origin_server_ts {
-                let today = chrono::offset::local::Local::today();
-                let timezone = today.timezone();
-                let date = timezone.timestamp(ost as i64/1000i64, 0u32);
-                date.to_rfc2822()
-            }
-            else {
-                println!("no timestamp");
-                continue;
-            };
-
-            //println!("no problem... adding : {:?}", c);
-            let m = room::Message::new(&sender, &time, c);
+        if let Some(m) = get_message_from_event(e) {
             messages.push(m);
         }
     }
@@ -367,6 +344,61 @@ fn get_room_messages(
 
     rooms
     */
+}
+
+fn get_message_from_event(e : &Event) -> Option<room::Message>
+{
+    if e.kind != "m.room.message" {
+        return None;
+    }
+
+    let msgtype = if let Some(ref t) = e.content.msgtype {
+        t.clone()
+    }
+    else {
+        println!("i____no msgtype... : {:?}", e);
+        return None;
+    };
+
+    let body = if let Some(ref body) = e.content.body {
+        body.clone()
+    }
+    else {
+        println!("no body");
+        return None;
+    };
+
+    let c = match msgtype.as_str() {
+        "m.text" => room::Content::Text(body),
+        _ => {
+            println!("_____________ msgtype is not text : {}", msgtype );
+            return None;
+        }
+    };
+
+    let sender = if let Some(ref s) = e.sender {
+        s.clone()
+    }
+    else {
+        println!("no sender");
+        return None;
+    };
+
+    let time = if let Some(ost) = e.origin_server_ts {
+        let today = chrono::offset::local::Local::today();
+        let timezone = today.timezone();
+        let date = timezone.timestamp(ost as i64/1000i64, 0u32);
+        date.to_rfc2822()
+    }
+    else {
+        println!("no timestamp");
+        return None;
+    };
+
+    //println!("no problem... adding : {:?}", c);
+    let m = room::Message::new(&sender, &time, c);
+
+    Some(m)
 }
 
 
@@ -502,9 +534,9 @@ fn get_messages(access_token : &str, room_id : &str, from : &str) -> Box<Message
     //println!("url : {}", url);
     let messages = get_content(&url).unwrap();
 
-    //let pretty = json::parse(&messages).unwrap();
-    //let ppp = pretty.pretty(2);
-    //println!("{}", ppp);
+    let pretty = json::parse(&messages).unwrap();
+    let ppp = pretty.pretty(2);
+    println!("{}", ppp);
 
     Box::new(serde_json::from_str(&messages).unwrap())
 }

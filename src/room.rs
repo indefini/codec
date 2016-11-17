@@ -1,6 +1,9 @@
 use std::collections::HashMap;
+use std::sync::{Arc, RwLock};
 
-pub type Rooms = HashMap<String, Room>;
+pub type Rooms = HashMap<String, SyncRoom>;
+
+pub type SyncRoom = Arc<RwLock<Room>>;
 
 #[derive(Debug)]
 pub struct Room
@@ -20,6 +23,11 @@ impl Room {
             prev_batch : prev_batch.to_owned(),
             messages : Vec::new()
         }
+    }
+
+    pub fn new_sync(id : &str, name : &str, prev_batch : &str) -> SyncRoom
+    {
+        Arc::new(RwLock::new(Room::new(id, name, prev_batch)))
     }
 
     pub fn id(&self) -> &str
