@@ -15,6 +15,7 @@ extern crate json;
 extern crate rscam;
 
 extern crate libc;
+extern crate chrono;
 
 extern crate efl_sys as efl;
 

@@ -6,6 +6,9 @@ use std::borrow::Cow;
 use std::thread;
 use std::sync::mpsc;
 use std::sync::{RwLock, Arc, Mutex};
+use chrono;
+use chrono::TimeZone;
+
 
 pub struct App
 {
@@ -153,7 +156,9 @@ fn start_sync_task(mu : UiCon, login : Box<LoginResponse>)
 
                 for (id, room) in &rooms {
 
+                    if room.name == "mikuroom" {
                     start_messages_task(mu.clone(), &access_token, room);
+                    }
                 }
 
                 break;
@@ -213,7 +218,8 @@ fn start_messages_task(
     let room_name = room.name.clone();
     let access_token = access_token.to_owned();
 
-    thread::spawn(move || {
+    thread::Builder::new().name(room_name.clone()).spawn(move || {
+    //thread::spawn(move || {
         println!("get messages for {}", room_name);
         let res = get_room_messages(&access_token, &room_id, &prev_batch);
         tx.send(res).unwrap();
@@ -266,6 +272,8 @@ fn get_room_messages(
                 room_id,
                 prev_batch);
 
+    println!("MESSSSSSSSSSSSSSSSSS : {:?}", msg_res);
+
     let mut messages = Vec::new();
 
     for e in &msg_res.chunk {
@@ -274,29 +282,47 @@ fn get_room_messages(
                 t.clone()
             }
             else {
-                break;
+                println!("i____no msgtype... : {:?}", e);
+                continue;
             };
 
             let body = if let Some(ref body) = e.content.body {
                 body.clone()
             }
             else {
-                break
+                println!("no body");
+                continue
             };
 
             let c = match msgtype.as_str() {
                 "m.text" => room::Content::Text(body),
-                _ => break
+                _ => {
+                    println!("_____________ msgtype is not text : {}", msgtype );
+                    continue;
+                }
             };
 
             let sender = if let Some(ref s) = e.sender {
                 s.clone()
             }
             else {
-                break;
+                println!("no sender");
+                continue;
             };
 
-            let m = room::Message::new(&sender, "time", c);
+            let time = if let Some(ost) = e.origin_server_ts {
+                let today = chrono::offset::local::Local::today();
+                let timezone = today.timezone();
+                let date = timezone.timestamp(ost as i64/1000i64, 0u32);
+                date.to_rfc2822()
+            }
+            else {
+                println!("no timestamp");
+                continue;
+            };
+
+            //println!("no problem... adding : {:?}", c);
+            let m = room::Message::new(&sender, &time, c);
             messages.push(m);
         }
     }
