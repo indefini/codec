@@ -308,23 +308,45 @@ void chat_text_add(const char *user, const char *time, const char *message)
   evas_object_show(bx_msg);
 
   Eo* label = elm_label_add(bx_msg);
-  elm_object_text_set(label, time);
+  elm_object_text_set(label, "  ");
   evas_object_size_hint_weight_set(label, 0, EVAS_HINT_EXPAND);
-  evas_object_size_hint_align_set(label, 0, 0.5);
+  evas_object_size_hint_align_set(label, 0.5, 0.5);
   elm_box_pack_end(bx_msg, label);
   evas_object_show(label);
 
   label = elm_label_add(bx_msg);
-  evas_object_size_hint_weight_set(label, 0, EVAS_HINT_EXPAND);
-  evas_object_size_hint_align_set(label, 0, 0.5);
   elm_object_text_set(label, user);
+  evas_object_size_hint_weight_set(label, 0, EVAS_HINT_EXPAND);
+  evas_object_size_hint_align_set(label, 1, 0.5);
   elm_box_pack_end(bx_msg, label);
   evas_object_show(label);
+
+  Eo* sp = elm_separator_add(bx_msg);
+  elm_box_pack_end(bx_msg, sp);
+  evas_object_show(sp);
 
   label = elm_label_add(bx_msg);
   evas_object_size_hint_weight_set(label, EVAS_HINT_EXPAND, EVAS_HINT_EXPAND);
   evas_object_size_hint_align_set(label, 0, 0.5);
   elm_object_text_set(label, message);
+  elm_box_pack_end(bx_msg, label);
+  evas_object_show(label);
+
+  sp = elm_separator_add(bx_msg);
+  elm_box_pack_end(bx_msg, sp);
+  evas_object_show(sp);
+
+  label = elm_label_add(bx_msg);
+  evas_object_size_hint_weight_set(label, 0, EVAS_HINT_EXPAND);
+  evas_object_size_hint_align_set(label, 1, 0.5);
+  elm_object_text_set(label, time);
+  elm_box_pack_end(bx_msg, label);
+  evas_object_show(label);
+
+  label = elm_label_add(bx_msg);
+  elm_object_text_set(label, "  ");
+  evas_object_size_hint_weight_set(label, 0, EVAS_HINT_EXPAND);
+  evas_object_size_hint_align_set(label, 0.5, 0.5);
   elm_box_pack_end(bx_msg, label);
   evas_object_show(label);
 

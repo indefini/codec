@@ -388,7 +388,8 @@ fn get_message_from_event(e : &Event) -> Option<room::Message>
         let today = chrono::offset::local::Local::today();
         let timezone = today.timezone();
         let date = timezone.timestamp(ost as i64/1000i64, 0u32);
-        date.to_rfc2822()
+        //date.to_rfc2822()
+        date.time().format("%H:%M:%S").to_string()
     }
     else {
         println!("no timestamp");
