@@ -8,6 +8,7 @@ use std::sync::mpsc;
 use std::sync::{RwLock, Arc, Mutex};
 use chrono;
 use chrono::TimeZone;
+use std::time::Duration;
 
 
 pub struct App
@@ -31,29 +32,48 @@ impl App {
 }
 
 type UiCon = Arc<Mutex<efl::UiCon>>;
+type Connection = Arc<RwLock<ConnectionData>>;
 
 struct Core
 {
-    //access_token : String,
     //rooms : room::Rooms,
     ui_con : Option<UiCon>,
-    //log : Arc<Mutex<Option<Box<LoginResponse>>>>,
-    //tx : mpsc::Sender<Box<LoginResponse>>,
-    //rx : mpsc::Receiver<Box<LoginResponse>>,
-
+    con : Connection
 }
+
+#[derive(PartialEq)]
+enum ConnectionState {
+    Offline,
+    Login,
+    SyncFirst,
+    SyncLoop
+}
+
+struct ConnectionData
+{
+    access_token : Option<String>,
+    next_batch : Option<String>,
+    state : ConnectionState
+}
+
+impl ConnectionData {
+    fn new() -> ConnectionData {
+        ConnectionData {
+            access_token : None,
+            next_batch : None,
+            state : ConnectionState::Offline
+        }
+    }
+}
+
 
 impl Core
 {
     pub fn new() -> Core
     {
-        //let (tx, rx) = mpsc::channel();
-
         Core {
             ui_con : None,
-            //log : Arc::new(Mutex::new(None)),
-            //tx : tx,
-            //rx : rx
+            con : Arc::new(RwLock::new(ConnectionData::new())),
         }
     }
 
@@ -73,12 +93,8 @@ impl Core
             return;
         };
 
-        //TODO
-        //show "Login in" text
-        
         let users = user.to_owned();
         let passs = pass.to_owned();
-        //let mmm = self.log.clone();
         let (tx,rx) = mpsc::channel();
 
 
@@ -98,15 +114,26 @@ impl Core
         });
         */
 
+        self.con.write().unwrap().state = ConnectionState::Login;
+
         let child = thread::spawn(move || {
             let res = loginstring(users, passs);
             tx.send(res).unwrap();
         });
 
+        let con_lock = self.con.clone();
+
         thread::spawn(move || {
             loop {
                 if let Ok(login) = rx.try_recv() {
-                    start_sync_task(mu.clone(), login);
+
+                    {
+                        let mut con = con_lock.write().unwrap();
+                        con.state = ConnectionState::SyncFirst;
+                        con.access_token = Some(login.access_token.clone());
+                    }
+
+                    start_sync_task(mu.clone(), con_lock);
                     break;
                 }
             }
@@ -117,46 +144,63 @@ impl Core
     }
 }
 
-fn start_sync_task(mu : UiCon, login : Box<LoginResponse>)
+fn start_sync_task(mu : UiCon, con : Connection)
 {
-    efl::main_loop_begin();
-    if let Ok(ui_con) = mu.lock() {
-        ui_con.set_loading_text("syncing");
+    if con.read().unwrap().state == ConnectionState::SyncFirst {
+        efl::main_loop_begin();
+        if let Ok(ui_con) = mu.lock() {
+            ui_con.set_loading_text("syncing");
+        }
+        efl::main_loop_end();
     }
-    efl::main_loop_end();
 
     let (synctx,syncrx) = mpsc::channel();
 
-    let access_token = login.access_token.clone();
+    let access_token = con.read().unwrap().access_token.clone().unwrap();
+    let access_token2 = access_token.clone();
+    let con2 = con.clone();
 
     thread::spawn(move || {
         println!("syncing started!!!");
-        let res = sync(&login.access_token);
-        synctx.send(res).unwrap();
+        loop {
+            if con2.read().unwrap().state == ConnectionState::SyncFirst {
+                let res = sync(&access_token2, None);
+                synctx.send(res).unwrap();
+            }
+
+            let duration = Duration::from_secs(1);
+            thread::sleep(duration);
+        }
     });
 
     thread::spawn(move || {
         loop {
             if let Ok(sync) = syncrx.try_recv() {
-                println!("syncing over!!!");
-                efl::main_loop_begin();
-                //efl::add_async(|| {
-                //efl::set_loading_visible(false);
-                //efl::set_chat_visible(true);
-                
-                let mut rooms = get_rooms(&sync);
 
-                
-                if let Ok(ui_con) = mu.lock() {
-                    ui_con.set_loading_visible(false);
-                    ui_con.set_chat_visible(true);
-                }
+                let mut co = con.write().unwrap();
 
-                efl::main_loop_end();
+                if co.state == ConnectionState::SyncFirst {
+                    println!("syncing over!!!");
+                    efl::main_loop_begin();
+                    //efl::add_async(|| {
+                    //efl::set_loading_visible(false);
+                    //efl::set_chat_visible(true);
 
-                for (id, room) in &rooms {
-                    if room.read().unwrap().name == "mikuroom" {
-                    start_messages_task(mu.clone(), &access_token, room.clone());
+                    if let Ok(ui_con) = mu.lock() {
+                        ui_con.set_loading_visible(false);
+                        ui_con.set_chat_visible(true);
+                    }
+
+                    efl::main_loop_end();
+
+                    co.state = ConnectionState::SyncLoop;
+
+                    let mut rooms = get_rooms(&sync);
+
+                    for (id, room) in &rooms {
+                        if room.read().unwrap().name == "mikuroom" {
+                            start_messages_task(mu.clone(), &access_token, room.clone());
+                        }
                     }
                 }
 
@@ -173,6 +217,8 @@ fn get_rooms(sync : &Box<Sync>) -> room::Rooms
 
         let mut name = None;
         let mut messages = Vec::new();
+        let mut topic = None;
+        let mut users = HashMap::new();
 
         for e in room.state.events.iter() {
             match &*e.kind {
@@ -186,6 +232,17 @@ fn get_rooms(sync : &Box<Sync>) -> room::Rooms
                         messages.push(m);
                     }
 
+                },
+                "m.room.topic" => {
+                    if let Some(ref t) = e.content.topic {
+                        topic = Some(t.clone());
+                    }
+
+                },
+                "m.room.member" => {
+                    let sender = e.sender.clone().unwrap();
+                    let user = room::User::new(sender.clone(), e.content.displayname.clone());
+                    users.insert(sender, user);
                 },
                 _ => {
                 }
@@ -203,6 +260,8 @@ fn get_rooms(sync : &Box<Sync>) -> room::Rooms
             );
 
         ro.messages = messages;
+        ro.topic = topic;
+        ro.users = users;
 
         r.insert(id.clone(), Arc::new(RwLock::new(ro)));
     }
@@ -258,7 +317,8 @@ fn start_messages_task(
                     if room_name == "mikuroom" {
                         ui_con.set_loading_visible(false);
                         ui_con.set_chat_visible(true);
-                        add_chat_messages(&*ui_con, &room.messages);
+                        //add_chat_messages(&*ui_con, &room.messages);
+                        add_chat_messages(&*ui_con, &*room);
                     }
                 }
 
@@ -271,12 +331,15 @@ fn start_messages_task(
 
 }
 
-fn add_chat_messages(uicon : &efl::UiCon, messages : &Vec<room::Message>)
+//fn add_chat_messages(uicon : &efl::UiCon, messages : &Vec<room::Message>)
+fn add_chat_messages(uicon : &efl::UiCon, room : &room::Room)
 {
-    for m in messages {
+    for m in &room.messages {
         match m.content {
             room::Content::Text(ref t) => {
-                uicon.add_chat_text(&m.user, &m.time, t);
+                let user = room.users.get(&m.user).unwrap().get_name();
+                let name = "<color=#ff0000>".to_owned() + user + "</color>";
+                uicon.add_chat_text(&name, &m.time, t);
             },
             _ => {}
 
@@ -506,7 +569,7 @@ fn login(user : &str, pass : &str) -> Box<LoginResponse>
 
 
  
-fn sync(access_token : &str) -> Box<Sync>
+fn sync(access_token : &str, next_batch : Option<String>) -> Box<Sync>
 {
     let get_state_url = URL.to_owned() + PREFIX + GET_STATE_FILTER + access_token;
 

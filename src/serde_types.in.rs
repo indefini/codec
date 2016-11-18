@@ -335,6 +335,7 @@ struct EventContent
     avatar_url : Option<String>,
     displayname : Option<String>,
     membership : Option<String>,
+    topic : Option<String>
 }
 
 #[derive(Serialize, Deserialize, Debug)]

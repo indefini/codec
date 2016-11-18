@@ -10,8 +10,11 @@ pub struct Room
 {
     id : String,
     pub name : String,
+    pub topic : Option<String>,
     pub prev_batch : String,
-    pub messages : Vec<Message>
+    pub messages : Vec<Message>,
+    pub users : HashMap<String, User>,
+    //pub user_colors : HashMap<String, String>,
 }
 
 impl Room {
@@ -20,8 +23,10 @@ impl Room {
         Room {
             id : id.to_owned(),
             name : name.to_owned(),
+            topic : None,
             prev_batch : prev_batch.to_owned(),
-            messages : Vec::new()
+            messages : Vec::new(),
+            users : HashMap::new()
         }
     }
 
@@ -62,3 +67,36 @@ pub enum Content
     Image(String)
 }
 
+
+#[derive(Debug)]
+pub struct User
+{
+    pub id : String,
+    pub display_name : Option<String>,
+}
+
+impl User
+{
+    pub fn new(id : String, display_name : Option<String>) -> User
+    {
+        User {
+            id : id,
+            display_name : display_name,
+        }
+    }
+
+    pub fn get_name(&self) -> &str
+    {
+        if let Some(ref dn) = self.display_name {
+            &*dn
+        }
+        else {
+            &self.id
+        }
+    }
+}
+
+pub fn get_random_color() -> String
+{
+    "#ff0000".to_owned()
+}
