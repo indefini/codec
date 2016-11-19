@@ -230,17 +230,22 @@ struct Chat* chat_new(Evas_Object* win)
 {
   struct Chat* chat = calloc(1, sizeof *chat);
 
+  Evas_Object* bxwin = elm_box_add(win);
+  evas_object_size_hint_weight_set(bxwin, EVAS_HINT_EXPAND, EVAS_HINT_EXPAND);
+  elm_win_resize_object_add(win, bxwin);
+  
   Evas_Object* bx = elm_box_add(win);
   evas_object_size_hint_weight_set(bx, EVAS_HINT_EXPAND, EVAS_HINT_EXPAND);
-  elm_win_resize_object_add(win, bx);
-  //evas_object_show(bx);
+  evas_object_size_hint_align_set(bx, EVAS_HINT_FILL, 1.0);
+  elm_box_pack_end(bxwin, bx);
+  evas_object_show(bx);
 
   Evas_Object* label = elm_label_add(win);
   elm_object_text_set(label, "chat room.........");
   elm_box_pack_end(bx, label);
   evas_object_show(label);
 
-  chat->object = bx;
+  chat->object = bxwin;
   chat->box = bx;
 
   return chat;
