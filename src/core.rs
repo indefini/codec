@@ -11,11 +11,14 @@ use chrono::TimeZone;
 use std::time::Duration;
 use std::io::Write;
 
+use xdg;
+
+const APP_NAME : &'static str = "codec";
+const SESSION_NAME : &'static str = "session";
 
 pub struct App
 {
     core : Box<Core>,
-    pub session : Session
 }
 
 impl App {
@@ -27,25 +30,25 @@ impl App {
 
         core.ui_con = Some(ui_con);
 
-        let session : Session = match File::open(&Path::new("session")) {
-            Ok(ref mut f) => {
-                let mut file = String::new();
-                f.read_to_string(&mut file).unwrap();
-                serde_json::from_str(&file).unwrap()
+        match (&core.session.user, &core.session.pass) {
+            (&Some(ref u), &Some(ref p)) => {
+                core.request_login(u, p);
             },
-            _ => Session::new()
-        };
+            _ => {}
+        }
 
         App {
             core : core,
-            session : session
         }
     }
 
     pub fn save(&self) 
     {
-        let serialized = serde_json::to_string(&self.session).unwrap();
-        let path : &Path = Path::new("session");
+        let xdg_dirs = xdg::BaseDirectories::with_prefix(APP_NAME).unwrap();
+        let path = xdg_dirs.place_config_file(SESSION_NAME).expect("cannot create session file");
+
+        let serialized = serde_json::to_string(&self.core.session).unwrap();
+        //let path : &Path = Path::new("session");
         let mut file = File::create(path).ok().unwrap();
         file.write(serialized.as_bytes());
     }
@@ -59,7 +62,8 @@ struct Core
 {
     rooms : Data,
     ui_con : Option<UiCon>,
-    con : Connection
+    con : Connection,
+    session : Session
 }
 
 #[derive(PartialEq)]
@@ -92,14 +96,35 @@ impl Core
 {
     pub fn new() -> Core
     {
+        let xdg_dirs = xdg::BaseDirectories::with_prefix(APP_NAME).unwrap();
+        let path = xdg_dirs.place_config_file(SESSION_NAME).expect("cannot open session file");
+
+        //let session : Session = match File::open(&Path::new("session")) {
+        let session : Session = match File::open(&path) {
+            Ok(ref mut f) => {
+                let mut file = String::new();
+                f.read_to_string(&mut file).unwrap();
+                serde_json::from_str(&file).unwrap()
+            },
+            _ => Session::new()
+        };
+        
         Core {
             ui_con : None,
             con : Arc::new(RwLock::new(ConnectionData::new())),
             rooms : Arc::new(RwLock::new(HashMap::new())),
+            session : session
         }
     }
 
-    pub fn request_login_from_ui(&self, user : &str, pass : &str)
+    pub fn save_and_request_login(&mut self, user : &str, pass : &str)
+    {
+        self.session.user = Some(user.to_owned());
+        self.session.pass = Some(pass.to_owned());
+        self.request_login(user, pass);
+    }
+
+    pub fn request_login(&self, user : &str, pass : &str)
     {
         //let ui_con = self.ui_con.as_ref().unwrap();
 
@@ -575,9 +600,9 @@ extern fn request_login_from_ui(
     user : *const c_char,
     pass : *const c_char)
 {
-    let core : *const Core = data as *const Core; 
-    let core = unsafe { &*core };
-    core.request_login_from_ui(&*get_str(user), &*get_str(pass));  
+    let core : *mut Core = data as *mut Core; 
+    let core = unsafe { &mut *core };
+    core.save_and_request_login(&*get_str(user), &*get_str(pass));  
 }
 
 fn get_string(str : *const c_char) -> String {

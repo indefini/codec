@@ -16,8 +16,10 @@ extern crate rscam;
 
 extern crate libc;
 extern crate chrono;
+extern crate xdg;
 
 extern crate efl_sys as efl;
+
 
 #[cfg(feature = "serde_derive")]
 include!("serde_types.in.rs");
