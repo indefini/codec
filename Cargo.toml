@@ -22,6 +22,7 @@ serde_derive = { version = "0.8", optional = true }
 serde_json = "0.8"
 libc = "*"
 chrono = "*"
+xdg = "2.0.0"
 
 [dependencies.efl-sys]
 path = "efl-sys"

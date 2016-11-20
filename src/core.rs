@@ -9,11 +9,13 @@ use std::sync::{RwLock, Arc, Mutex};
 use chrono;
 use chrono::TimeZone;
 use std::time::Duration;
+use std::io::Write;
 
 
 pub struct App
 {
     core : Box<Core>,
+    pub session : Session
 }
 
 impl App {
@@ -25,9 +27,27 @@ impl App {
 
         core.ui_con = Some(ui_con);
 
+        let session : Session = match File::open(&Path::new("session")) {
+            Ok(ref mut f) => {
+                let mut file = String::new();
+                f.read_to_string(&mut file).unwrap();
+                serde_json::from_str(&file).unwrap()
+            },
+            _ => Session::new()
+        };
+
         App {
             core : core,
+            session : session
         }
+    }
+
+    pub fn save(&self) 
+    {
+        let serialized = serde_json::to_string(&self.session).unwrap();
+        let path : &Path = Path::new("session");
+        let mut file = File::create(path).ok().unwrap();
+        file.write(serialized.as_bytes());
     }
 }
 
@@ -235,7 +255,7 @@ fn start_sync_task(mu : UiCon, con : Connection, rooms : Data)
     });
 }
 
-fn get_rooms(sync : &Box<Sync>) -> room::Rooms
+fn get_rooms(sync : &Box<Matrix::Sync>) -> room::Rooms
 {
     let mut r = HashMap::new();
     for (id, room) in sync.rooms.join.iter() {
@@ -300,7 +320,7 @@ fn get_rooms(sync : &Box<Sync>) -> room::Rooms
     r
 }
 
-fn get_new_messages(sync : &Box<Sync>) -> HashMap<String, Vec<room::Message>>
+fn get_new_messages(sync : &Box<Matrix::Sync>) -> HashMap<String, Vec<room::Message>>
 {
     let mut r = HashMap::new();
     for (id, room) in &sync.rooms.join {
@@ -493,7 +513,7 @@ fn get_room_messages(
     */
 }
 
-fn get_message_from_event(e : &Event) -> Option<room::Message>
+fn get_message_from_event(e : &Matrix::Event) -> Option<room::Message>
 {
     if e.kind != "m.room.message" {
         return None;
@@ -631,12 +651,12 @@ const GET_STATE_LOOP :&'static str = "/sync?access_token=";
 
 const TEST_ROOM :&'static str = "christestroom";
 
-fn loginstring(user : String, pass : String) -> Box<LoginResponse>
+fn loginstring(user : String, pass : String) -> Box<Matrix::LoginResponse>
 {
     login(user.as_str(), pass.as_str())
 }
 
-fn login(user : &str, pass : &str) -> Box<LoginResponse>
+fn login(user : &str, pass : &str) -> Box<Matrix::LoginResponse>
 {
     let obj = object!{
         "type" => "m.login.password",
@@ -656,7 +676,7 @@ fn login(user : &str, pass : &str) -> Box<LoginResponse>
 
 
  
-fn sync(access_token : &str, next_batch : Option<String>) -> Box<Sync>
+fn sync(access_token : &str, next_batch : Option<String>) -> Box<Matrix::Sync>
 {
     let get_state_url = if let Some(ref nb) = next_batch {
         URL.to_owned() + PREFIX + GET_STATE + access_token + "&since=" + nb
@@ -684,7 +704,7 @@ fn sync(access_token : &str, next_batch : Option<String>) -> Box<Sync>
 
 }
 
-fn get_messages(access_token : &str, room_id : &str, from : &str) -> Box<Messages>
+fn get_messages(access_token : &str, room_id : &str, from : &str) -> Box<Matrix::Messages>
 {
     let url = URL.to_owned() + PREFIX + "/rooms/" + room_id + "/messages" + "?from=" + from + "&dir=b&limit=10" + "&access_token=" + access_token;
     //println!("url : {}", url);

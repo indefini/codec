@@ -107,5 +107,7 @@ fn main() {
     let app = core::App::new();
     efl::app_run();
 
+    app.save();
+
 }
 

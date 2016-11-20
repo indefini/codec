@@ -247,6 +247,20 @@ struct Chat* chat_new(Evas_Object* win)
 
   chat->object = bxwin;
   chat->box = bx;
+  chat->title = label;
+
+  //input box
+  bx = elm_box_add(win);
+  evas_object_size_hint_weight_set(bx, EVAS_HINT_EXPAND, EVAS_HINT_EXPAND);
+  evas_object_size_hint_align_set(bx, EVAS_HINT_FILL, 1.0);
+  elm_box_pack_end(bxwin, bx);
+  evas_object_show(bx);
+
+  Eo* en = elm_entry_add(win);
+  evas_object_size_hint_weight_set(en, EVAS_HINT_EXPAND, EVAS_HINT_EXPAND);
+  evas_object_size_hint_align_set(en, EVAS_HINT_FILL, EVAS_HINT_FILL);
+  elm_box_pack_end(bx, en);
+  evas_object_show(en);
 
   return chat;
 }

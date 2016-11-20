@@ -21,6 +21,7 @@ struct Loading {
 struct Chat {
   Eo* object;
   Eo* box;
+  Eo* title;
   Eina_List *lines;
 };
 
