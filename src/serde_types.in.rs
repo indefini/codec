@@ -5,7 +5,7 @@ use serde::de::impls::{IgnoredAny};
 use std::path::Path;
 use std::fs::File;
 
-mod Matrix {
+mod matrix {
 use std::collections::HashMap;
     /// Login
 #[derive(Serialize, Deserialize, Debug)]
@@ -146,21 +146,67 @@ pub struct Messages
 }
 
 
-#[derive(Serialize, Deserialize, Debug)]
+mod codec {
+use std::collections::HashMap;
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Session {
     pub user : Option<String>,
     pub pass : Option<String>,
-    //pub next_batch : Option<String>,
-//    pub rooms : HashMap<
+    pub next_batch : Option<String>,
+    // id, name
+    pub rooms : HashMap<String, Room>
 }
 
 impl Session {
-    fn new() -> Session
+    pub fn new() -> Session
     {
         Session {
             user : None,
-            pass : None
+            pass : None,
+            rooms : HashMap::new(),
+            next_batch : None
         }
     }
+}
+
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct Room
+{
+    pub id : String,
+    pub name : String,
+    pub topic : Option<String>,
+    pub prev_batch : String,
+    //#[serde(skip_deserializing)]
+    pub messages : Vec<Message>,
+    pub users : HashMap<String, User>,
+    //pub user_colors : HashMap<String, String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct Message
+{
+    pub user : String,
+    pub time : String,
+    pub content : Content
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub enum Content
+{
+    Text(String),
+    Image(String)
+}
+
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct User
+{
+    pub id : String,
+    pub display_name : Option<String>,
+}
+
+
 }
 

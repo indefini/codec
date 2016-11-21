@@ -241,7 +241,12 @@ struct Chat* chat_new(Evas_Object* win)
   evas_object_show(bx);
 
   Evas_Object* label = elm_label_add(win);
+  elm_label_line_wrap_set(label, ELM_WRAP_CHAR);
   elm_object_text_set(label, "chat room.........");
+  evas_object_size_hint_weight_set(label, EVAS_HINT_EXPAND, 0);
+  //evas_object_size_hint_align_set(label, EVAS_HINT_FILL, EVAS_HINT_FILL);
+  evas_object_size_hint_align_set(label, 0, EVAS_HINT_FILL);
+  //evas_object_size_hint_align_set(label, 0, 0.5);
   elm_box_pack_end(bx, label);
   evas_object_show(label);
 
@@ -320,7 +325,7 @@ void chat_text_add(const char *user, const char *time, const char *message)
 
   Eo* bx_msg = elm_box_add(bx_parent);
   evas_object_size_hint_weight_set(bx_msg, EVAS_HINT_EXPAND, EVAS_HINT_EXPAND);
-  evas_object_size_hint_align_set(bx_msg, EVAS_HINT_FILL, EVAS_HINT_FILL);
+  evas_object_size_hint_align_set(bx_msg, EVAS_HINT_FILL, 1.0);
   elm_box_horizontal_set(bx_msg,  EINA_TRUE);
   elm_box_padding_set(bx_msg, 4, 4);
   elm_box_pack_end(bx_parent, bx_msg);
@@ -345,7 +350,8 @@ void chat_text_add(const char *user, const char *time, const char *message)
   evas_object_show(sp);
 
   label = elm_label_add(bx_msg);
-  evas_object_size_hint_weight_set(label, EVAS_HINT_EXPAND, EVAS_HINT_EXPAND);
+  elm_label_line_wrap_set(label, ELM_WRAP_MIXED);
+  evas_object_size_hint_weight_set(label, EVAS_HINT_EXPAND, 0);
   evas_object_size_hint_align_set(label, 0, EVAS_HINT_FILL);
   elm_object_text_set(label, message);
   elm_box_pack_end(bx_msg, label);

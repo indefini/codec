@@ -20,7 +20,6 @@ extern crate xdg;
 
 extern crate efl_sys as efl;
 
-
 #[cfg(feature = "serde_derive")]
 include!("serde_types.in.rs");
 
@@ -29,6 +28,7 @@ include!(concat!(env!("OUT_DIR"), "/serde_types.rs"));
 
 mod room;
 mod core;
+
 
 fn main() {
     //println!("Hello you!");
@@ -106,7 +106,7 @@ fn main() {
 
     efl::app_init();
     //must keep the app variable alive
-    let app = core::App::new();
+    let mut app = core::App::new();
     efl::app_run();
 
     app.save();

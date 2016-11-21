@@ -1,5 +1,3 @@
-use room;
-use efl;
 use libc::{c_void, c_int, c_char, c_float};
 use std::ffi::CStr;
 use std::borrow::Cow;
@@ -10,6 +8,13 @@ use chrono;
 use chrono::TimeZone;
 use std::time::Duration;
 use std::io::Write;
+use std::fs::File;
+use std::collections::HashMap;
+
+use codec;
+use matrix;
+use efl;
+use room;
 
 use xdg;
 
@@ -42,8 +47,21 @@ impl App {
         }
     }
 
-    pub fn save(&self) 
+    pub fn save(&mut self) 
     {
+        {
+            let rooms = self.core.rooms.clone();
+            let con = self.core.con.clone();
+
+            let session = &mut self.core.session;
+            for (id, room) in rooms.read().unwrap().iter() {
+                //session.rooms.insert(id.clone(), room.read().unwrap().name.clone());
+                session.rooms.insert(id.clone(), room.read().unwrap().clone());
+            }
+
+            session.next_batch = con.read().unwrap().next_batch.clone();
+        }
+
         let xdg_dirs = xdg::BaseDirectories::with_prefix(APP_NAME).unwrap();
         let path = xdg_dirs.place_config_file(SESSION_NAME).expect("cannot create session file");
 
@@ -63,7 +81,7 @@ struct Core
     rooms : Data,
     ui_con : Option<UiCon>,
     con : Connection,
-    session : Session
+    session : codec::Session
 }
 
 #[derive(PartialEq)]
@@ -100,19 +118,24 @@ impl Core
         let path = xdg_dirs.place_config_file(SESSION_NAME).expect("cannot open session file");
 
         //let session : Session = match File::open(&Path::new("session")) {
-        let session : Session = match File::open(&path) {
+        let session : codec::Session = match File::open(&path) {
             Ok(ref mut f) => {
                 let mut file = String::new();
                 f.read_to_string(&mut file).unwrap();
                 serde_json::from_str(&file).unwrap()
             },
-            _ => Session::new()
+            _ => codec::Session::new()
         };
-        
+
+        let rooms : room::Rooms = session.rooms.iter().map(|(id, r)| (id.clone(), Arc::new(RwLock::new(r.clone())))).collect();
+
+        let mut con = ConnectionData::new();
+        con.next_batch = session.next_batch.clone();
+            
         Core {
             ui_con : None,
-            con : Arc::new(RwLock::new(ConnectionData::new())),
-            rooms : Arc::new(RwLock::new(HashMap::new())),
+            con : Arc::new(RwLock::new(con)),
+            rooms : Arc::new(RwLock::new(rooms)),
             session : session
         }
     }
@@ -177,7 +200,12 @@ impl Core
 
                     {
                         let mut con = con_lock.write().unwrap();
-                        con.state = ConnectionState::SyncFirst;
+                        if con.next_batch.is_none() {
+                            con.state = ConnectionState::SyncFirst;
+                        }
+                        else {
+                            con.state = ConnectionState::SyncLoop;
+                        }
                         con.access_token = Some(login.access_token.clone());
                     }
 
@@ -211,14 +239,8 @@ fn start_sync_task(mu : UiCon, con : Connection, rooms : Data)
     thread::spawn(move || {
         println!("syncing started!!!");
         loop {
-            if con2.read().unwrap().state == ConnectionState::SyncFirst {
-                let res = sync(&access_token2, None);
-                synctx.send(res).unwrap();
-            }
-            else {
-                let res = sync(&access_token2, con2.read().unwrap().next_batch.clone());
-                synctx.send(res).unwrap();
-            }
+            let res = sync(&access_token2, con2.read().unwrap().next_batch.clone());
+            synctx.send(res).unwrap();
 
             let duration = Duration::from_secs(5);
             thread::sleep(duration);
@@ -262,6 +284,11 @@ fn start_sync_task(mu : UiCon, con : Connection, rooms : Data)
                     let m = get_new_messages(&sync);
 
                     if let Ok(ui_con) = mu.lock() {
+
+                        // just in case :: TODO remove
+                        ui_con.set_loading_visible(false);
+                        ui_con.set_chat_visible(true);
+
                         for (room_id, mut msg) in m {
                             if let Some(room) = rooms.read().unwrap().get(&*room_id) {
                                 let mut rr = room.write().unwrap();
@@ -280,7 +307,7 @@ fn start_sync_task(mu : UiCon, con : Connection, rooms : Data)
     });
 }
 
-fn get_rooms(sync : &Box<Matrix::Sync>) -> room::Rooms
+fn get_rooms(sync : &Box<matrix::Sync>) -> room::Rooms
 {
     let mut r = HashMap::new();
     for (id, room) in sync.rooms.join.iter() {
@@ -311,7 +338,7 @@ fn get_rooms(sync : &Box<Matrix::Sync>) -> room::Rooms
                 },
                 "m.room.member" => {
                     let sender = e.sender.clone().unwrap();
-                    let user = room::User::new(sender.clone(), e.content.displayname.clone());
+                    let user = codec::User::new(sender.clone(), e.content.displayname.clone());
                     users.insert(sender, user);
                 },
                 _ => {
@@ -329,7 +356,7 @@ fn get_rooms(sync : &Box<Matrix::Sync>) -> room::Rooms
         }
         
 
-        let mut ro = room::Room::new(
+        let mut ro = codec::Room::new(
             id,
             &name.unwrap(),
             &room.timeline.prev_batch
@@ -345,7 +372,7 @@ fn get_rooms(sync : &Box<Matrix::Sync>) -> room::Rooms
     r
 }
 
-fn get_new_messages(sync : &Box<Matrix::Sync>) -> HashMap<String, Vec<room::Message>>
+fn get_new_messages(sync : &Box<matrix::Sync>) -> HashMap<String, Vec<codec::Message>>
 {
     let mut r = HashMap::new();
     for (id, room) in &sync.rooms.join {
@@ -438,11 +465,11 @@ fn start_messages_task(
 
 }
 
-fn add_chat_messages(uicon : &efl::UiCon, room : &room::Room)
+fn add_chat_messages(uicon : &efl::UiCon, room : &codec::Room)
 {
     for m in &room.messages {
         match m.content {
-            room::Content::Text(ref t) => {
+            codec::Content::Text(ref t) => {
                 let user = room.users.get(&m.user).unwrap().get_name();
                 let name = "<color=#ff0000>".to_owned() + user + "</color>";
                 uicon.add_chat_text(&name, &m.time, t);
@@ -455,12 +482,12 @@ fn add_chat_messages(uicon : &efl::UiCon, room : &room::Room)
     }
 }
 
-fn add_messages_to_room(uicon : &efl::UiCon, room : &mut room::Room, messages : &mut Vec<room::Message>)
+fn add_messages_to_room(uicon : &efl::UiCon, room : &mut codec::Room, messages : &mut Vec<codec::Message>)
 {
     efl::main_loop_begin();
     for m in &*messages {
         match m.content {
-            room::Content::Text(ref t) => {
+            codec::Content::Text(ref t) => {
                 let user = room.users.get(&m.user).unwrap().get_name();
                 let name = "<color=#ff0000>".to_owned() + user + "</color>";
                 uicon.add_chat_text(&name, &m.time, t);
@@ -479,7 +506,7 @@ fn add_messages_to_room(uicon : &efl::UiCon, room : &mut room::Room, messages : 
 fn get_room_messages(
     access_token : &str,
     room_id : &str,
-    prev_batch : &str) -> Vec<room::Message>
+    prev_batch : &str) -> Vec<codec::Message>
 {
     let msg_res = get_messages(
                 access_token,
@@ -538,7 +565,7 @@ fn get_room_messages(
     */
 }
 
-fn get_message_from_event(e : &Matrix::Event) -> Option<room::Message>
+fn get_message_from_event(e : &matrix::Event) -> Option<codec::Message>
 {
     if e.kind != "m.room.message" {
         return None;
@@ -561,7 +588,7 @@ fn get_message_from_event(e : &Matrix::Event) -> Option<room::Message>
     };
 
     let c = match msgtype.as_str() {
-        "m.text" => room::Content::Text(body),
+        "m.text" => codec::Content::Text(body),
         _ => {
             println!("_____________ msgtype is not text : {}", msgtype );
             return None;
@@ -589,7 +616,7 @@ fn get_message_from_event(e : &Matrix::Event) -> Option<room::Message>
     };
 
     //println!("no problem... adding : {:?}", c);
-    let m = room::Message::new(&sender, &time, c);
+    let m = codec::Message::new(&sender, &time, c);
 
     Some(m)
 }
@@ -627,11 +654,11 @@ use rustc_serialize;
 use serde_json;
 use json;
 
-#[cfg(feature = "serde_derive")]
-include!("serde_types.in.rs");
+//#[cfg(feature = "serde_derive")]
+//include!("serde_types.in.rs");
 
-#[cfg(feature = "serde_codegen")]
-include!(concat!(env!("OUT_DIR"), "/serde_types.rs"));
+//#[cfg(feature = "serde_codegen")]
+//include!(concat!(env!("OUT_DIR"), "/serde_types.rs"));
 
 fn get_content(url: &str) -> hyper::Result<String> {
     let client = Client::new();
@@ -676,12 +703,12 @@ const GET_STATE_LOOP :&'static str = "/sync?access_token=";
 
 const TEST_ROOM :&'static str = "christestroom";
 
-fn loginstring(user : String, pass : String) -> Box<Matrix::LoginResponse>
+fn loginstring(user : String, pass : String) -> Box<matrix::LoginResponse>
 {
     login(user.as_str(), pass.as_str())
 }
 
-fn login(user : &str, pass : &str) -> Box<Matrix::LoginResponse>
+fn login(user : &str, pass : &str) -> Box<matrix::LoginResponse>
 {
     let obj = object!{
         "type" => "m.login.password",
@@ -701,7 +728,7 @@ fn login(user : &str, pass : &str) -> Box<Matrix::LoginResponse>
 
 
  
-fn sync(access_token : &str, next_batch : Option<String>) -> Box<Matrix::Sync>
+fn sync(access_token : &str, next_batch : Option<String>) -> Box<matrix::Sync>
 {
     let get_state_url = if let Some(ref nb) = next_batch {
         URL.to_owned() + PREFIX + GET_STATE + access_token + "&since=" + nb
@@ -729,7 +756,7 @@ fn sync(access_token : &str, next_batch : Option<String>) -> Box<Matrix::Sync>
 
 }
 
-fn get_messages(access_token : &str, room_id : &str, from : &str) -> Box<Matrix::Messages>
+fn get_messages(access_token : &str, room_id : &str, from : &str) -> Box<matrix::Messages>
 {
     let url = URL.to_owned() + PREFIX + "/rooms/" + room_id + "/messages" + "?from=" + from + "&dir=b&limit=10" + "&access_token=" + access_token;
     //println!("url : {}", url);
