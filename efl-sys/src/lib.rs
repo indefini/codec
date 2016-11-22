@@ -30,6 +30,7 @@ extern "C" {
     fn ui_new(on_request_login_cb : *const c_void, rust_data : *const c_void) -> *const Ui;
 
     fn chat_text_add(user : *const c_char, msg: *const c_char, time : *const c_char);
+    fn notify_add(room : *const c_char, user : *const c_char, msg: *const c_char);
 }
 
 
@@ -84,6 +85,17 @@ impl UiCon
                 CString::new(text).unwrap().as_ptr());
         }
     }
+
+    pub fn notify(&self, room : &str, user :&str, text : &str)
+    {
+        unsafe { 
+            notify_add(
+                CString::new(room).unwrap().as_ptr(),
+                CString::new(user).unwrap().as_ptr(),
+                CString::new(text).unwrap().as_ptr());
+        }
+    }
+
 
 }
 

@@ -155,7 +155,8 @@ pub struct Session {
     pub pass : Option<String>,
     pub next_batch : Option<String>,
     // id, name
-    pub rooms : HashMap<String, Room>
+    pub rooms : HashMap<String, Room>,
+    pub current_room_id : Option<String>
 }
 
 impl Session {
@@ -165,7 +166,8 @@ impl Session {
             user : None,
             pass : None,
             rooms : HashMap::new(),
-            next_batch : None
+            next_batch : None,
+            current_room_id : None
         }
     }
 }

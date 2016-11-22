@@ -271,6 +271,60 @@ struct Chat* chat_new(Evas_Object* win)
   return chat;
 }
 
+static void
+_notify_timeout(void *data EINA_UNUSED, Evas_Object *obj EINA_UNUSED, void *event_info EINA_UNUSED)
+{
+ printf("end of timeout\n"); 
+}
+
+struct Notify* notify_new(Evas_Object* win)
+{
+  struct Notify* n = calloc(1, sizeof *n);
+
+  Evas_Object *notify, *bx, *lb;
+
+  notify = elm_notify_add(win);
+  evas_object_size_hint_weight_set(notify, EVAS_HINT_EXPAND, EVAS_HINT_EXPAND);
+  elm_notify_align_set(notify, 1.0, 0.0);
+  elm_notify_timeout_set(notify, 10.0);
+
+  evas_object_smart_callback_add(notify, "timeout", _notify_timeout, NULL);
+
+  bx = elm_box_add(win);
+  elm_object_content_set(notify, bx);
+  elm_box_horizontal_set(bx, EINA_TRUE);
+  evas_object_show(bx);
+
+  lb = elm_label_add(win);
+  elm_box_pack_end(bx, lb);
+  evas_object_show(lb);
+  n->room = lb;
+
+  Eo* sp = elm_separator_add(bx);
+  elm_box_pack_end(bx, sp);
+  evas_object_show(sp);
+
+  lb = elm_label_add(win);
+  elm_box_pack_end(bx, lb);
+  evas_object_show(lb);
+  n->user = lb;
+
+  sp = elm_separator_add(bx);
+  elm_box_pack_end(bx, sp);
+  evas_object_show(sp);
+
+  lb = elm_label_add(win);
+  elm_box_pack_end(bx, lb);
+  evas_object_show(lb);
+  n->message = lb;
+
+  n->object = notify;
+  n->box = bx;
+
+  return n;
+}
+
+
 struct Ui* ui_new(
     Request_Login_Cb request_login_cb,
     void* data)
@@ -281,6 +335,7 @@ struct Ui* ui_new(
   ui->login = login_new(request_login_cb, data);
   ui->loading = loading_new(win);
   ui->chat = chat_new(win);
+  ui->notify = notify_new(win);
 
   return ui;
 }
@@ -376,4 +431,23 @@ void chat_text_add(const char *user, const char *time, const char *message)
   elm_box_pack_end(bx_msg, label);
   evas_object_show(label);
 
+}
+
+void notify_add(const char *room, const char* user, const char* message)
+{
+  struct Notify* notify = _ui->notify;
+
+  elm_object_text_set(notify->room, room);
+  elm_object_text_set(notify->user, user);
+  evas_object_show(notify->object);
+
+  if (strlen(message) > 50) {
+    elm_label_line_wrap_set(notify->message, ELM_WRAP_MIXED);
+    elm_label_wrap_width_set(notify->message, 200);
+  }
+  else {
+    elm_label_line_wrap_set(notify->message, ELM_WRAP_NONE);
+  }
+
+  elm_object_text_set(notify->message, message);
 }

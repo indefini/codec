@@ -29,11 +29,11 @@ pub struct App
 impl App {
     pub fn new() -> App {
         let mut core = Box::new(Core::new());
-        let ui_con = Arc::new(Mutex::new(efl::UiCon::new(
+        let ui_con = efl::UiCon::new(
             request_login_from_ui as *const c_void,
-            &*core as *const _ as *const c_void)));
+            &*core as *const _ as *const c_void);
 
-        core.ui_con = Some(ui_con);
+        core.ui.lock().unwrap().con = Some(ui_con);
 
         match (&core.session.user, &core.session.pass) {
             (&Some(ref u), &Some(ref p)) => {
@@ -52,6 +52,7 @@ impl App {
         {
             let rooms = self.core.rooms.clone();
             let con = self.core.con.clone();
+            let ui = self.core.ui.clone();
 
             let session = &mut self.core.session;
             for (id, room) in rooms.read().unwrap().iter() {
@@ -60,6 +61,8 @@ impl App {
             }
 
             session.next_batch = con.read().unwrap().next_batch.clone();
+
+            session.current_room_id = ui.lock().unwrap().current_room_id.clone();
         }
 
         let xdg_dirs = xdg::BaseDirectories::with_prefix(APP_NAME).unwrap();
@@ -72,14 +75,31 @@ impl App {
     }
 }
 
-type UiCon = Arc<Mutex<efl::UiCon>>;
+type UiMasterMx = Arc<Mutex<UiMaster>>;
 type Connection = Arc<RwLock<ConnectionData>>;
 type Data = Arc<RwLock<room::Rooms>>;
+
+struct UiMaster
+{
+    current_room_id : Option<String>,
+    con : Option<efl::UiCon>
+}
+
+impl UiMaster {
+    fn new() -> UiMaster
+    {
+        UiMaster {
+            current_room_id : None,
+            con : None
+        }
+
+    }
+}
 
 struct Core
 {
     rooms : Data,
-    ui_con : Option<UiCon>,
+    ui : UiMasterMx,
     con : Connection,
     session : codec::Session
 }
@@ -131,9 +151,12 @@ impl Core
 
         let mut con = ConnectionData::new();
         con.next_batch = session.next_batch.clone();
+
+        let mut ui = UiMaster::new();
+        ui.current_room_id = session.current_room_id.clone();
             
         Core {
-            ui_con : None,
+            ui : Arc::new(Mutex::new(ui)),
             con : Arc::new(RwLock::new(con)),
             rooms : Arc::new(RwLock::new(rooms)),
             session : session
@@ -151,12 +174,10 @@ impl Core
     {
         //let ui_con = self.ui_con.as_ref().unwrap();
 
-        let mu = if let Some(ref ui_con) = self.ui_con {
-            if let Ok(ui_con) = ui_con.lock() {
+        if let Some(ref ui_con) = self.ui.lock().unwrap().con {
             //efl::set_login_visible(false);
             ui_con.set_login_visible(false);
             ui_con.set_loading_visible(true);
-            }
             ui_con.clone()
         }
         else {
@@ -193,6 +214,7 @@ impl Core
 
         let con_lock = self.con.clone();
         let rooms_lock = self.rooms.clone();
+        let uimx = self.ui.clone();
 
         thread::spawn(move || {
             loop {
@@ -209,7 +231,7 @@ impl Core
                         con.access_token = Some(login.access_token.clone());
                     }
 
-                    start_sync_task(mu.clone(), con_lock, rooms_lock);
+                    start_sync_task(uimx.clone(), con_lock, rooms_lock);
                     break;
                 }
             }
@@ -220,11 +242,11 @@ impl Core
     }
 }
 
-fn start_sync_task(mu : UiCon, con : Connection, rooms : Data)
+fn start_sync_task(uimx : UiMasterMx, con : Connection, rooms : Data)
 {
     if con.read().unwrap().state == ConnectionState::SyncFirst {
         efl::main_loop_begin();
-        if let Ok(ui_con) = mu.lock() {
+        if let Some(ref ui_con) = uimx.lock().unwrap().con {
             ui_con.set_loading_text("syncing");
         }
         efl::main_loop_end();
@@ -264,7 +286,7 @@ fn start_sync_task(mu : UiCon, con : Connection, rooms : Data)
                     //efl::set_loading_visible(false);
                     //efl::set_chat_visible(true);
 
-                    if let Ok(ui_con) = mu.lock() {
+                    if let Some(ref ui_con) = uimx.lock().unwrap().con {
                         ui_con.set_loading_visible(false);
                         ui_con.set_chat_visible(true);
 
@@ -283,19 +305,26 @@ fn start_sync_task(mu : UiCon, con : Connection, rooms : Data)
                 else if co.state == ConnectionState::SyncLoop {
                     let m = get_new_messages(&sync);
 
-                    if let Ok(ui_con) = mu.lock() {
+                    let ui : &UiMaster = &*uimx.lock().unwrap();
+                    if let Some(ref ui_con) = ui.con {
 
                         // just in case :: TODO remove
                         ui_con.set_loading_visible(false);
                         ui_con.set_chat_visible(true);
+                    }
 
-                        for (room_id, mut msg) in m {
-                            if let Some(room) = rooms.read().unwrap().get(&*room_id) {
-                                let mut rr = room.write().unwrap();
-                                if rr.name == TEST_ROOM {
-                                    add_messages_to_room(&*ui_con, &mut *rr, &mut msg);
-                                }
-                            }
+                    for (room_id, mut msg) in m {
+                        if let Some(room) = rooms.read().unwrap().get(&*room_id) {
+                            let mut rr = room.write().unwrap();
+                            //if rr.name == TEST_ROOM {
+                            //if rr.name == TEST_ROOM {
+                            //if ui.current_room_id.map_or_else(|| false, |ref o| o.as_str() == room_id) {
+                            //if ui.current_room_id.is_some() && *ui.current_room_id.as_ref().unwrap() == room_id {
+                                add_messages_to_room(ui, &mut *rr, &mut msg);
+                            //}
+                            //else {
+                             //   println!("got a message for room {}", rr.name);
+                            //}
                         }
                     }
                 }
@@ -351,7 +380,7 @@ fn get_rooms(sync : &Box<matrix::Sync>) -> room::Rooms
         }
         else if let Some(ref n) = name {
             if n == TEST_ROOM {
-            println!("mikuroom msg : {:?}", messages);
+                println!("mikuroom msg : {:?}", messages);
             }
         }
         
@@ -376,15 +405,15 @@ fn get_new_messages(sync : &Box<matrix::Sync>) -> HashMap<String, Vec<codec::Mes
 {
     let mut r = HashMap::new();
     for (id, room) in &sync.rooms.join {
-        println!("yes there is a room : {:?}", room);
+        //println!("yes there is a room : {:?}", room);
 
         let mut messages = Vec::new();
 
         for e in room.timeline.events.iter() {
-            println!("yes there is an event : {:?}", e);
+            //println!("yes there is an event : {:?}", e);
             match &*e.kind {
                 "m.room.message" => {
-                    println!("yes there is a msg : {:?}", e.content);
+                    //println!("yes there is a msg : {:?}", e.content);
                     if let Some(m) = get_message_from_event(e) {
                         messages.push(m);
                     }
@@ -404,7 +433,7 @@ fn get_new_messages(sync : &Box<matrix::Sync>) -> HashMap<String, Vec<codec::Mes
 }
 
 fn start_messages_task(
-    mu : UiCon, 
+    uimx : UiMasterMx, 
     access_token : &str,
     room : room::SyncRoom)
 {
@@ -412,7 +441,7 @@ fn start_messages_task(
     {
         let room = room.read().unwrap();
         efl::main_loop_begin();
-        if let Ok(ui_con) = mu.lock() {
+        if let Some(ref ui_con) = uimx.lock().unwrap().con {
             ui_con.set_loading_text(&("getting messages for".to_owned() + &room.name));
         }
         efl::main_loop_end();
@@ -447,7 +476,7 @@ fn start_messages_task(
                 println!("get messages for '{}' over!!!", room_name);
                 efl::main_loop_begin();
 
-                if let Ok(ui_con) = mu.lock() {
+                if let Some(ref ui_con) = uimx.lock().unwrap().con {
                     if room_name == TEST_ROOM {
                         ui_con.set_loading_visible(false);
                         ui_con.set_chat_visible(true);
@@ -482,18 +511,32 @@ fn add_chat_messages(uicon : &efl::UiCon, room : &codec::Room)
     }
 }
 
-fn add_messages_to_room(uicon : &efl::UiCon, room : &mut codec::Room, messages : &mut Vec<codec::Message>)
+fn add_messages_to_room(ui : &UiMaster, room : &mut codec::Room, messages : &mut Vec<codec::Message>)
 {
+    let uicon = if let Some(ref con) = ui.con {
+        con
+    }
+    else {
+        return;
+    };
+
     efl::main_loop_begin();
+
     for m in &*messages {
         match m.content {
             codec::Content::Text(ref t) => {
-                let user = room.users.get(&m.user).unwrap().get_name();
+                //let user = room.users.get(&m.user).unwrap().get_name();
+                let user = room.users.get(&m.user).map_or("cannot find user", |u| u.get_name());
                 let name = "<color=#ff0000>".to_owned() + user + "</color>";
-                uicon.add_chat_text(&name, &m.time, t);
+                if ui.current_room_id.as_ref().map_or(false, |o| *o == room.id) {
+                    uicon.add_chat_text(&name, &m.time, t);
+                    uicon.notify(&room.name, &name, t);
+                }
+                else {
+                    uicon.notify(&room.name, &name, t);
+                }
             },
             _ => {}
-
         }
     }
 
@@ -739,9 +782,9 @@ fn sync(access_token : &str, next_batch : Option<String>) -> Box<matrix::Sync>
 
     let state = get_content(&get_state_url).unwrap();
 
-    let pretty = json::parse(&state).unwrap();
-    let state = pretty.pretty(2);
-    println!("{}", state);
+    //let pretty = json::parse(&state).unwrap();
+    //let state = pretty.pretty(2);
+    //println!("{}", state);
     /*
     if let Some(ref next_batch) = state["next_batch"].as_str() {
 

@@ -25,10 +25,25 @@ struct Chat {
   Eina_List *lines;
 };
 
+struct Notify {
+  Eo* object;
+  Eo* box;
+  Eo* room;
+  Eo* user;
+  Eo* message;
+  int state;
+};
+
+struct RoomSelector
+{
+  Eo* object;
+};
+
 struct Ui {
   struct Login *login;
   struct Loading *loading;
   struct Chat* chat;
+  struct Notify* notify;
 };
 
 struct Ui* ui_new(Request_Login_Cb request_login_cb, void* data);
@@ -42,3 +57,4 @@ void loading_visible_set(Eina_Bool b);
 void chat_visible_set(Eina_Bool b);
 void chat_text_add(const char *user, const char *time, const char *message);
 
+void notify_add(const char *room, const char* user, const char* message);
