@@ -32,6 +32,15 @@ _window_del(void *data, Evas_Object* o, void* event_info)
   elm_exit();
 }
 
+static Eina_Bool
+_elm_event_win(void *data, Evas_Object* o, Evas_Object* src, Evas_Callback_Type type, void* event_info)
+{
+  if (type == EVAS_CALLBACK_KEY_DOWN) {
+    Evas_Event_Key_Down *ev = event_info;
+    printf("Key Down : %s\n", ev->key);
+  }
+}
+
 Eo* window_get_or_create()
 {
   if (_win == NULL) {
@@ -39,6 +48,15 @@ Eo* window_get_or_create()
     elm_win_autodel_set(_win, EINA_TRUE);
     evas_object_smart_callback_add(_win, "delete,request", _window_del, NULL);
   }
+
+  elm_object_event_callback_add(_win, _elm_event_win, NULL);
+
+  evas_object_key_grab(_win, "Escape", 0, 0, EINA_TRUE);
+
+  Evas* e = evas_object_evas_get(_win);
+  Evas_Modifier_Mask modifier;
+  modifier = evas_key_modifier_mask_get(e, "Control");
+  evas_object_key_grab(_win, "Tab", modifier, 0, EINA_TRUE);
 
   return _win;
 }
@@ -228,42 +246,50 @@ void login_success(Eina_Bool b) {
 
 struct Chat* chat_new(Evas_Object* win)
 {
-  struct Chat* chat = calloc(1, sizeof *chat);
+  struct Chat *chat = calloc(1, sizeof *chat);
 
-  Evas_Object* bxwin = elm_box_add(win);
+  Evas_Object *bxwin, *bx, *label, *scroller, *en;
+
+  bxwin = elm_box_add(win);
   evas_object_size_hint_weight_set(bxwin, EVAS_HINT_EXPAND, EVAS_HINT_EXPAND);
+  elm_box_homogeneous_set(bxwin, EINA_FALSE);
   elm_win_resize_object_add(win, bxwin);
   
-  Evas_Object* bx = elm_box_add(win);
-  elm_box_align_set(bx, 0.5, 0);
-  evas_object_size_hint_weight_set(bx, EVAS_HINT_EXPAND, EVAS_HINT_EXPAND);
-  evas_object_size_hint_align_set(bx, EVAS_HINT_FILL, 0.0);
-  elm_box_pack_end(bxwin, bx);
-  evas_object_show(bx);
-
-  Evas_Object* label = elm_entry_add(win);
+  label = elm_entry_add(win);
   elm_entry_editable_set(label,EINA_FALSE);
   elm_object_text_set(label, "chat room.........");
-  evas_object_size_hint_weight_set(label, EVAS_HINT_EXPAND, EVAS_HINT_EXPAND);
-  //evas_object_size_hint_weight_set(label, EVAS_HINT_EXPAND, 0);
-  //evas_object_size_hint_align_set(label, EVAS_HINT_FILL, EVAS_HINT_FILL);
+  evas_object_size_hint_weight_set(label, EVAS_HINT_EXPAND, 0);
   evas_object_size_hint_align_set(label, EVAS_HINT_FILL, 0);
-  elm_box_pack_end(bx, label);
+  elm_box_pack_end(bxwin, label);
   evas_object_show(label);
 
   chat->object = bxwin;
-  chat->box = bx;
   chat->title = label;
+
+  scroller = elm_scroller_add(win);
+  evas_object_size_hint_weight_set(scroller, EVAS_HINT_EXPAND, EVAS_HINT_EXPAND);
+  evas_object_size_hint_align_set(scroller, EVAS_HINT_FILL, EVAS_HINT_FILL);
+  evas_object_show(scroller);
+  elm_scroller_gravity_set(scroller, 0, 1.0);
+  elm_box_pack_end(bxwin, scroller);
+
+  bx = elm_box_add(win);
+  elm_box_align_set(bx, 0.5, 0);
+  evas_object_size_hint_weight_set(bx, EVAS_HINT_EXPAND, EVAS_HINT_EXPAND);
+  evas_object_size_hint_align_set(bx, EVAS_HINT_FILL, EVAS_HINT_FILL);
+  elm_object_content_set(scroller, bx);
+  evas_object_show(bx);
+  chat->box = bx;
 
   //input box
   bx = elm_box_add(win);
-  evas_object_size_hint_weight_set(bx, EVAS_HINT_EXPAND, EVAS_HINT_EXPAND);
+  evas_object_size_hint_weight_set(bx, EVAS_HINT_EXPAND, 0);
   evas_object_size_hint_align_set(bx, EVAS_HINT_FILL, 1.0);
   elm_box_pack_end(bxwin, bx);
   evas_object_show(bx);
 
-  Eo* en = elm_entry_add(win);
-  evas_object_size_hint_weight_set(en, EVAS_HINT_EXPAND, EVAS_HINT_EXPAND);
+  en = elm_entry_add(win);
+  evas_object_size_hint_weight_set(en, EVAS_HINT_EXPAND, 0);
   evas_object_size_hint_align_set(en, EVAS_HINT_FILL, EVAS_HINT_FILL);
   elm_box_pack_end(bx, en);
   evas_object_show(en);
@@ -380,7 +406,7 @@ void chat_text_add(const char *user, const char *time, const char *message)
   Eo* bx_parent = _ui->chat->box;
 
   Eo* bx_msg = elm_box_add(bx_parent);
-  evas_object_size_hint_weight_set(bx_msg, EVAS_HINT_EXPAND, EVAS_HINT_EXPAND);
+  evas_object_size_hint_weight_set(bx_msg, EVAS_HINT_EXPAND, 0);
   evas_object_size_hint_align_set(bx_msg, EVAS_HINT_FILL, 1.0);
   elm_box_horizontal_set(bx_msg,  EINA_TRUE);
   elm_box_padding_set(bx_msg, 4, 4);

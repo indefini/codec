@@ -46,8 +46,8 @@ pub struct JoinedRoom
 #[derive(Serialize, Deserialize, Debug)]
 pub struct UnreadNotificationCounts
 {
-    pub highlight_count : u32,
-    pub notification_count : u32
+    pub highlight_count : Option<u32>,
+    pub notification_count : Option<u32>
 }
 
 #[derive(Serialize, Deserialize, Debug)]

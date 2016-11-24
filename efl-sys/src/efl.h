@@ -43,6 +43,7 @@ struct Ui {
   struct Login *login;
   struct Loading *loading;
   struct Chat* chat;
+  //struct Eina_List* chats;
   struct Notify* notify;
 };
 
