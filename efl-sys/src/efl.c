@@ -51,12 +51,16 @@ Eo* window_get_or_create()
 
   elm_object_event_callback_add(_win, _elm_event_win, NULL);
 
-  evas_object_key_grab(_win, "Escape", 0, 0, EINA_TRUE);
+  if (!evas_object_key_grab(_win, "Escape", 0, 0, EINA_TRUE)){
+    printf("could not grab key. \n");
+  }
 
   Evas* e = evas_object_evas_get(_win);
   Evas_Modifier_Mask modifier;
   modifier = evas_key_modifier_mask_get(e, "Control");
-  evas_object_key_grab(_win, "Tab", modifier, 0, EINA_TRUE);
+  if (!evas_object_key_grab(_win, "Tab", modifier, 0, EINA_TRUE)) {
+    printf("could not grab key. \n");
+  }
 
   return _win;
 }
