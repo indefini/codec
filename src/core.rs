@@ -31,9 +31,16 @@ impl App {
         let mut core = Box::new(Core::new());
         let ui_con = efl::UiCon::new(
             request_login_from_ui as *const c_void,
+            key_press as *const c_void,
             &*core as *const _ as *const c_void);
 
+         for id in core.rooms.read().unwrap().keys() {
+             ui_con.new_room(id);
+         }
+
         core.ui.lock().unwrap().con = Some(ui_con);
+        core.ui.lock().unwrap().show_current();
+
 
         match (&core.session.user, &core.session.pass) {
             (&Some(ref u), &Some(ref p)) => {
@@ -62,7 +69,7 @@ impl App {
 
             session.next_batch = con.read().unwrap().next_batch.clone();
 
-            session.current_room_id = ui.lock().unwrap().current_room_id.clone();
+            session.current_room_id = ui.lock().unwrap().get_current_id().clone();
         }
 
         let xdg_dirs = xdg::BaseDirectories::with_prefix(APP_NAME).unwrap();
@@ -81,7 +88,8 @@ type Data = Arc<RwLock<room::Rooms>>;
 
 struct UiMaster
 {
-    current_room_id : Option<String>,
+    current : usize,
+    rooms : Vec<String>,
     con : Option<efl::UiCon>
 }
 
@@ -89,11 +97,72 @@ impl UiMaster {
     fn new() -> UiMaster
     {
         UiMaster {
-            current_room_id : None,
+            current : 0usize,
+            rooms : Vec::new(),
             con : None
+        }
+    }
+
+    fn get_current_id(&self) -> Option<String>
+    {
+        if self.current > self.rooms.len() -1 {
+            None
+        }
+        else {
+            Some(self.rooms[self.current].clone())
+        }
+    }
+
+    fn show_next_room(&mut self)
+    {
+        println!("yes ! next room  {}", self.current);
+        if self.rooms.is_empty() {
+            return;
+        }
+
+        self.current = if self.current >= self.rooms.len() - 1 {
+            0
+        }
+        else {
+            self.current + 1
+        };
+
+        println!("yes ! current is now {} ", self.current);
+
+        self.show_current();
+    }
+
+    fn set_room(&mut self, room_id : &str) -> bool
+    {
+        for (n, id) in self.rooms.iter().enumerate()
+        {
+            if id == room_id {
+                self.current = n;
+                return true;
+            }
+        }
+        
+        false
+    }
+
+    fn show_room(&mut self, room_id : &str)
+    {
+        if !self.set_room(room_id) {
+            return;
+        }
+
+        self.show_current();
+    }
+
+    fn show_current(&self)
+    {
+        if let Some(ref con) = self.con {
+            println!("ok will try to show :{}, {}", self.current, self.rooms[self.current]);
+            con.set_room(&self.rooms[self.current]);
         }
 
     }
+
 }
 
 struct Core
@@ -149,11 +218,15 @@ impl Core
 
         let rooms : room::Rooms = session.rooms.iter().map(|(id, r)| (id.clone(), Arc::new(RwLock::new(r.clone())))).collect();
 
+
         let mut con = ConnectionData::new();
         con.next_batch = session.next_batch.clone();
 
         let mut ui = UiMaster::new();
-        ui.current_room_id = session.current_room_id.clone();
+        ui.rooms = session.rooms.keys().map(|s| s.clone()).collect();
+        if let Some(ref id) = session.current_room_id {
+            ui.set_room(id);
+        }
             
         Core {
             ui : Arc::new(Mutex::new(ui)),
@@ -239,6 +312,16 @@ impl Core
 
         //or show login failed + show the pass window again
         // 
+    }
+
+    pub fn handle_key(&mut self, modifier : &str, key : &str)
+    {
+        println!("press key : {}, {}", modifier, key);
+
+        if key == "Tab" {
+            self.ui.lock().unwrap().show_next_room();
+        }
+
     }
 }
 
@@ -501,7 +584,7 @@ fn add_chat_messages(uicon : &efl::UiCon, room : &codec::Room)
             codec::Content::Text(ref t) => {
                 let user = room.users.get(&m.user).unwrap().get_name();
                 let name = "<color=#ff0000>".to_owned() + user + "</color>";
-                uicon.add_chat_text(&name, &m.time, t);
+                uicon.add_room_text(&room.id, &name, &m.time, t);
             },
             _ => {
                 println!("content is not text!!!!!!!!");
@@ -528,11 +611,8 @@ fn add_messages_to_room(ui : &UiMaster, room : &mut codec::Room, messages : &mut
                 //let user = room.users.get(&m.user).unwrap().get_name();
                 let user = room.users.get(&m.user).map_or("cannot find user", |u| u.get_name());
                 let name = "<color=#ff0000>".to_owned() + user + "</color>";
-                if ui.current_room_id.as_ref().map_or(false, |o| *o == room.id) {
-                    uicon.add_chat_text(&name, &m.time, t);
-                    uicon.notify(&room.name, &name, t);
-                }
-                else {
+                uicon.add_room_text(&room.id, &name, &m.time, t);
+                if !ui.get_current_id().as_ref().map_or(false, |o| *o == room.id) {
                     uicon.notify(&room.name, &name, t);
                 }
             },
@@ -674,6 +754,17 @@ extern fn request_login_from_ui(
     let core = unsafe { &mut *core };
     core.save_and_request_login(&*get_str(user), &*get_str(pass));  
 }
+
+extern fn key_press(
+    data : *const c_void,
+    modifier : *const c_char,
+    key : *const c_char)
+{
+    let core : *mut Core = data as *mut Core; 
+    let core = unsafe { &mut *core };
+    core.handle_key(&*get_str(modifier), &*get_str(key));  
+}
+
 
 fn get_string(str : *const c_char) -> String {
     get_str(str).into_owned()

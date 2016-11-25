@@ -27,9 +27,15 @@ extern "C" {
     fn loading_text_set(t : *const c_char);
 
     fn login_success(b : bool);
-    fn ui_new(on_request_login_cb : *const c_void, rust_data : *const c_void) -> *const Ui;
+    fn ui_new(
+        on_request_login_cb : *const c_void,
+        on_key_press_cb : *const c_void,
+        rust_data : *const c_void
+        ) -> *const Ui;
 
-    fn chat_text_add(user : *const c_char, msg: *const c_char, time : *const c_char);
+    fn room_new(id : *const c_char);
+    fn room_set(id : *const c_char);
+    fn room_text_add(room_id : *const c_char, user : *const c_char, msg: *const c_char, time : *const c_char);
     fn notify_add(room : *const c_char, user : *const c_char, msg: *const c_char);
 }
 
@@ -43,9 +49,13 @@ impl UiCon
 {
     pub fn new(
         login_cb : *const c_void,
+        key_cb : *const c_void,
         core : *const c_void) -> UiCon
     {
-            unsafe { ui_new(login_cb as *const _, core) };
+            unsafe { ui_new(
+                    login_cb as *const _,
+                    key_cb as *const _
+                    , core) };
         UiCon {
         //    ui : unsafe { ui_new(login_cb as *const _, core) }
         }
@@ -76,14 +86,25 @@ impl UiCon
         unsafe { loading_text_set(CString::new(text).unwrap().as_ptr()); }
     }
 
-    pub fn add_chat_text(&self, user :&str, time : &str, text : &str)
+    pub fn add_room_text(&self, room : &str,  user :&str, time : &str, text : &str)
     {
         unsafe { 
-            chat_text_add(
+            room_text_add(
+                CString::new(room).unwrap().as_ptr(),
                 CString::new(user).unwrap().as_ptr(),
                 CString::new(time).unwrap().as_ptr(),
                 CString::new(text).unwrap().as_ptr());
         }
+    }
+
+    pub fn new_room(&self, id : &str)
+    {
+        unsafe { room_new(CString::new(id).unwrap().as_ptr()); }
+    }
+
+    pub fn set_room(&self, id : &str)
+    {
+        unsafe { room_set(CString::new(id).unwrap().as_ptr()); }
     }
 
     pub fn notify(&self, room : &str, user :&str, text : &str)

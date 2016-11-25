@@ -25,6 +25,9 @@ void kexit()
 }
 
 static Eo* _win = NULL;
+//TODO remove
+static Key_Press_Cb _key_press_cb = NULL;
+static void* _core_data = NULL;
 
 static void
 _window_del(void *data, Evas_Object* o, void* event_info)
@@ -39,18 +42,24 @@ _elm_event_win(void *data, Evas_Object* o, Evas_Object* src, Evas_Callback_Type 
     Evas_Event_Key_Down *ev = event_info;
     if (evas_key_modifier_is_set(ev->modifiers, "Control") &&
         !strcmp(ev->key, "Tab")) {
-        printf("Key Down TABBBB : %s\n, TODO : use _ui to do something", ev->key);
+        printf("Key Down TABBBB : %s, TODO : use _ui to do something\n", ev->key);
+        if (_key_press_cb && _core_data) {
+          _key_press_cb(_core_data, "Control", ev->key);
+        }
     }
   }
+  return EINA_FALSE;
 }
 
 Eo* window_get_or_create()
 {
-  if (_win == NULL) {
+  if (_win) {
+    return _win;
+  }
+
     _win = elm_win_util_standard_add("codec", "codec");
     elm_win_autodel_set(_win, EINA_TRUE);
     evas_object_smart_callback_add(_win, "delete,request", _window_del, NULL);
-  }
 
   elm_object_event_callback_add(_win, _elm_event_win, NULL);
 
@@ -251,55 +260,26 @@ void login_success(Eina_Bool b) {
   }
 }
 
-struct Chat* chat_new(Evas_Object* win)
+static void
+_room_free(void *data)
+{
+  free(data);
+}
+
+struct Chat*
+chat_new(Evas_Object* win)
 {
   struct Chat *chat = calloc(1, sizeof *chat);
 
   Evas_Object *bxwin, *bx, *label, *scroller, *en;
 
-  bxwin = elm_box_add(win);
+  bxwin = elm_table_add(win);
   evas_object_size_hint_weight_set(bxwin, EVAS_HINT_EXPAND, EVAS_HINT_EXPAND);
-  elm_box_homogeneous_set(bxwin, EINA_FALSE);
+  //elm_box_homogeneous_set(bxwin, EINA_FALSE);
   elm_win_resize_object_add(win, bxwin);
-  
-  label = elm_entry_add(win);
-  elm_entry_editable_set(label,EINA_FALSE);
-  elm_object_text_set(label, "chat room.........");
-  evas_object_size_hint_weight_set(label, EVAS_HINT_EXPAND, 0);
-  evas_object_size_hint_align_set(label, EVAS_HINT_FILL, 0);
-  elm_box_pack_end(bxwin, label);
-  evas_object_show(label);
 
   chat->object = bxwin;
-  chat->title = label;
-
-  scroller = elm_scroller_add(win);
-  evas_object_size_hint_weight_set(scroller, EVAS_HINT_EXPAND, EVAS_HINT_EXPAND);
-  evas_object_size_hint_align_set(scroller, EVAS_HINT_FILL, EVAS_HINT_FILL);
-  evas_object_show(scroller);
-  elm_scroller_gravity_set(scroller, 0, 1.0);
-  elm_box_pack_end(bxwin, scroller);
-
-  bx = elm_box_add(win);
-  elm_box_align_set(bx, 0.5, 0);
-  evas_object_size_hint_weight_set(bx, EVAS_HINT_EXPAND, EVAS_HINT_EXPAND);
-  evas_object_size_hint_align_set(bx, EVAS_HINT_FILL, EVAS_HINT_FILL);
-  elm_object_content_set(scroller, bx);
-  evas_object_show(bx);
-  chat->box = bx;
-
-  //input box
-  bx = elm_box_add(win);
-  evas_object_size_hint_weight_set(bx, EVAS_HINT_EXPAND, 0);
-  evas_object_size_hint_align_set(bx, EVAS_HINT_FILL, 1.0);
-  elm_box_pack_end(bxwin, bx);
-  evas_object_show(bx);
-
-  en = elm_entry_add(win);
-  evas_object_size_hint_weight_set(en, EVAS_HINT_EXPAND, 0);
-  evas_object_size_hint_align_set(en, EVAS_HINT_FILL, EVAS_HINT_FILL);
-  elm_box_pack_end(bx, en);
-  evas_object_show(en);
+  chat->rooms = eina_hash_string_superfast_new(_room_free);
 
   return chat;
 }
@@ -357,14 +337,18 @@ struct Notify* notify_new(Evas_Object* win)
   return n;
 }
 
-
 struct Ui* ui_new(
     Request_Login_Cb request_login_cb,
+    Key_Press_Cb key_press_cb,
     void* data)
 {
   struct Ui *ui = calloc(1, sizeof *ui);
   _ui = ui;
+  _key_press_cb = key_press_cb;
+  _core_data = data;
+
   Eo* win = window_get_or_create();
+  ui->win = win;
   ui->login = login_new(request_login_cb, data);
   ui->loading = loading_new(win);
   ui->chat = chat_new(win);
@@ -408,9 +392,19 @@ void loading_text_set(const char* text)
   //ecore_animator_add(cb, user_data);
 //}
 
-void chat_text_add(const char *user, const char *time, const char *message)
+void room_text_add(
+    const char* room_id,
+    const char *user,
+    const char *time,
+    const char *message)
 {
-  Eo* bx_parent = _ui->chat->box;
+  struct Room* room = eina_hash_find(_ui->chat->rooms, room_id);
+  if (!room) {
+    printf("could not find room..., should add it? return for the moment\n");
+    return;
+  }
+
+  Eo* bx_parent = room->box;
 
   Eo* bx_msg = elm_box_add(bx_parent);
   evas_object_size_hint_weight_set(bx_msg, EVAS_HINT_EXPAND, 0);
@@ -483,4 +477,86 @@ void notify_add(const char *room, const char* user, const char* message)
   }
 
   elm_object_text_set(notify->message, message);
+}
+
+static struct Room*
+_room_new(Evas_Object* win)
+{
+  Evas_Object* chat_parent = _ui->chat->object;
+
+  struct Room *room = calloc(1, sizeof *room);
+
+  Evas_Object *bxwin, *bx, *label, *scroller, *en;
+
+  bxwin = elm_box_add(win);
+  evas_object_size_hint_weight_set(bxwin, EVAS_HINT_EXPAND, EVAS_HINT_EXPAND);
+  evas_object_size_hint_align_set(bxwin, EVAS_HINT_FILL, EVAS_HINT_FILL);
+  elm_box_homogeneous_set(bxwin, EINA_FALSE);
+  elm_table_pack(chat_parent, bxwin, 0, 0, 1, 1);
+
+  label = elm_entry_add(win);
+  elm_entry_editable_set(label,EINA_FALSE);
+  elm_object_text_set(label, "chat room.........");
+  evas_object_size_hint_weight_set(label, EVAS_HINT_EXPAND, 0);
+  evas_object_size_hint_align_set(label, EVAS_HINT_FILL, 0);
+  elm_box_pack_end(bxwin, label);
+  evas_object_show(label);
+
+  room->object = bxwin;
+  room->title = label;
+
+  scroller = elm_scroller_add(win);
+  evas_object_size_hint_weight_set(scroller, EVAS_HINT_EXPAND, EVAS_HINT_EXPAND);
+  evas_object_size_hint_align_set(scroller, EVAS_HINT_FILL, EVAS_HINT_FILL);
+  evas_object_show(scroller);
+  elm_scroller_gravity_set(scroller, 0, 1.0);
+  elm_box_pack_end(bxwin, scroller);
+
+  bx = elm_box_add(win);
+  elm_box_align_set(bx, 0.5, 0);
+  evas_object_size_hint_weight_set(bx, EVAS_HINT_EXPAND, EVAS_HINT_EXPAND);
+  evas_object_size_hint_align_set(bx, EVAS_HINT_FILL, EVAS_HINT_FILL);
+  elm_object_content_set(scroller, bx);
+  evas_object_show(bx);
+  room->box = bx;
+
+  //input box
+  bx = elm_box_add(win);
+  evas_object_size_hint_weight_set(bx, EVAS_HINT_EXPAND, 0);
+  evas_object_size_hint_align_set(bx, EVAS_HINT_FILL, 1.0);
+  elm_box_pack_end(bxwin, bx);
+  evas_object_show(bx);
+
+  en = elm_entry_add(win);
+  evas_object_size_hint_weight_set(en, EVAS_HINT_EXPAND, 0);
+  evas_object_size_hint_align_set(en, EVAS_HINT_FILL, EVAS_HINT_FILL);
+  elm_box_pack_end(bx, en);
+  evas_object_show(en);
+
+  return room;
+}
+
+void room_new(const char *id)
+{
+  eina_hash_add(_ui->chat->rooms, id, _room_new(_ui->win));
+}
+
+void room_set(const char *id)
+{
+  struct Chat *chat = _ui->chat;
+
+  if (chat->room_current) {
+    evas_object_hide(chat->room_current->object);
+  }
+
+  struct Room* room = eina_hash_find(chat->rooms, id);
+  if (!room) {
+    printf("could not find room..., should add it? return for the moment\n");
+    return;
+  }
+
+  chat->room_current = room;
+
+  evas_object_show(chat->room_current->object);
+
 }
