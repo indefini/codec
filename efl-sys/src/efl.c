@@ -37,7 +37,10 @@ _elm_event_win(void *data, Evas_Object* o, Evas_Object* src, Evas_Callback_Type 
 {
   if (type == EVAS_CALLBACK_KEY_DOWN) {
     Evas_Event_Key_Down *ev = event_info;
-    printf("Key Down : %s\n", ev->key);
+    if (evas_key_modifier_is_set(ev->modifiers, "Control") &&
+        !strcmp(ev->key, "Tab")) {
+        printf("Key Down TABBBB : %s\n, TODO : use _ui to do something", ev->key);
+    }
   }
 }
 
