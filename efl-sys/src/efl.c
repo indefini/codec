@@ -558,5 +558,15 @@ void room_set(const char *id)
   chat->room_current = room;
 
   evas_object_show(chat->room_current->object);
+}
 
+void room_title_set(const char *id, const char* title)
+{
+  struct Room* room = eina_hash_find(_ui->chat->rooms, id);
+  if (!room) {
+    printf("could not find room..., should add it? return for the moment\n");
+    return;
+  }
+
+  elm_object_text_set(room->title, title);
 }
