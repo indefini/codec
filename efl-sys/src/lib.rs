@@ -37,6 +37,8 @@ extern "C" {
     fn room_set(id : *const c_char);
     fn room_text_add(room_id : *const c_char, user : *const c_char, msg: *const c_char, time : *const c_char);
     fn notify_add(room : *const c_char, user : *const c_char, msg: *const c_char);
+
+    fn room_title_set(id :* const c_char, title :  *const c_char);
 }
 
 
@@ -114,6 +116,15 @@ impl UiCon
                 CString::new(room).unwrap().as_ptr(),
                 CString::new(user).unwrap().as_ptr(),
                 CString::new(text).unwrap().as_ptr());
+        }
+    }
+
+    pub fn set_room_title(&self, room : &str, title : &str)
+    {
+        unsafe {
+            room_title_set(
+                CString::new(room).unwrap().as_ptr(),
+                CString::new(title).unwrap().as_ptr());
         }
     }
 

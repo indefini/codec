@@ -570,3 +570,4 @@ void room_title_set(const char *id, const char* title)
 
   elm_object_text_set(room->title, title);
 }
+

@@ -34,8 +34,13 @@ impl App {
             key_press as *const c_void,
             &*core as *const _ as *const c_void);
 
-         for id in core.rooms.read().unwrap().keys() {
+         //for id in core.rooms.read().unwrap().keys() {
+         for (id, r) in core.rooms.read().unwrap().iter() {
              ui_con.new_room(id);
+             //tODO set title in new_room func
+             let room = r.read().unwrap();
+             let title = room.name.clone();// + room.topic.map_or("");
+             ui_con.set_room_title(id, &title);
          }
 
         core.ui.lock().unwrap().con = Some(ui_con);
