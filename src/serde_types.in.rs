@@ -113,6 +113,11 @@ pub enum Membership
     Invite,
 }
 
+fn return_true() -> bool
+{
+    true
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct EventContent
 {
@@ -122,7 +127,21 @@ pub struct EventContent
     pub avatar_url : Option<String>,
     pub displayname : Option<String>,
     pub membership : Option<String>,
-    pub topic : Option<String>
+    pub topic : Option<String>,
+
+    // third_party_invite
+    pub display_name: Option<String>,
+    pub key_validity_url: Option<String>,
+    pub public_key : Option<String>,
+    
+    //room create
+    pub creator : Option<String>,
+    #[serde(rename = "m.federate", default = "return_true")]
+    pub m_federate : bool,
+
+    //room aliases
+    pub aliases : Option<Vec<String>>
+
 }
 
 /*
@@ -183,6 +202,8 @@ pub struct Room
     //#[serde(skip_deserializing)]
     pub messages : Vec<Message>,
     pub users : HashMap<String, User>,
+    pub creator : String,
+    pub federate : bool
     //pub user_colors : HashMap<String, String>,
 }
 

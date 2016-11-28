@@ -7,7 +7,13 @@ pub type Rooms = HashMap<String, SyncRoom>;
 pub type SyncRoom = Arc<RwLock<codec::Room>>;
 
 impl codec::Room {
-    pub fn new(id : &str, name : &str, prev_batch : &str) -> codec::Room
+    pub fn new(
+        id : &str,
+        name : &str,
+        prev_batch : &str,
+        creator : &str,
+        federate : bool
+        ) -> codec::Room
     {
         codec::Room {
             id : id.to_owned(),
@@ -15,14 +21,18 @@ impl codec::Room {
             topic : None,
             prev_batch : prev_batch.to_owned(),
             messages : Vec::new(),
-            users : HashMap::new()
+            users : HashMap::new(),
+            creator : creator.to_owned(),
+            federate : federate
         }
     }
 
+    /*
     pub fn new_sync(id : &str, name : &str, prev_batch : &str) -> SyncRoom
     {
         Arc::new(RwLock::new(codec::Room::new(id, name, prev_batch)))
     }
+    */
 
     pub fn id(&self) -> &str
     {

@@ -110,7 +110,10 @@ impl UiMaster {
 
     fn get_current_id(&self) -> Option<String>
     {
-        if self.current > self.rooms.len() -1 {
+        if self.rooms.is_empty() {
+            None
+        }
+        else if self.current > self.rooms.len() -1 {
             None
         }
         else {
@@ -120,7 +123,7 @@ impl UiMaster {
 
     fn show_next_room(&mut self)
     {
-        println!("yes ! next room  {}", self.current);
+        //println!("yes ! next room  {}", self.current);
         if self.rooms.is_empty() {
             return;
         }
@@ -132,7 +135,7 @@ impl UiMaster {
             self.current + 1
         };
 
-        println!("yes ! current is now {} ", self.current);
+        //println!("yes ! current is now {} ", self.current);
 
         self.show_current();
     }
@@ -161,8 +164,12 @@ impl UiMaster {
 
     fn show_current(&self)
     {
+        if self.rooms.is_empty() {
+            return;
+        }
+
         if let Some(ref con) = self.con {
-            println!("ok will try to show :{}, {}", self.current, self.rooms[self.current]);
+            //println!("ok will try to show :{}, {}", self.current, self.rooms[self.current]);
             con.set_room(&self.rooms[self.current]);
         }
 
@@ -321,7 +328,7 @@ impl Core
 
     pub fn handle_key(&mut self, modifier : &str, key : &str)
     {
-        println!("press key : {}, {}", modifier, key);
+        //println!("press key : {}, {}", modifier, key);
 
         if key == "Tab" {
             self.ui.lock().unwrap().show_next_room();
@@ -347,7 +354,7 @@ fn start_sync_task(uimx : UiMasterMx, con : Connection, rooms : Data)
     let con2 = con.clone();
 
     thread::spawn(move || {
-        println!("syncing started!!!");
+        //println!("syncing started!!!");
         loop {
             let res = sync(&access_token2, con2.read().unwrap().next_batch.clone());
             synctx.send(res).unwrap();
@@ -365,7 +372,7 @@ fn start_sync_task(uimx : UiMasterMx, con : Connection, rooms : Data)
                 co.next_batch = Some(sync.next_batch.clone());
 
                 if co.state == ConnectionState::SyncFirst {
-                    println!("syncing over!!!");
+                    //println!("syncing over!!!");
                     let r = get_rooms(&sync);
                     co.state = ConnectionState::SyncLoop;
 
@@ -379,7 +386,7 @@ fn start_sync_task(uimx : UiMasterMx, con : Connection, rooms : Data)
                         ui_con.set_chat_visible(true);
 
                         for (id, room) in &r {
-                            println!("ok room : {}", room.read().unwrap().name);
+                            //println!("ok room : {}", room.read().unwrap().name);
                             if room.read().unwrap().name == TEST_ROOM {
                                 add_chat_messages(&*ui_con, &*room.read().unwrap());
                             }
@@ -433,6 +440,8 @@ fn get_rooms(sync : &Box<matrix::Sync>) -> room::Rooms
         let mut messages = Vec::new();
         let mut topic = None;
         let mut users = HashMap::new();
+        let mut creator = None;
+        let mut federate = true;
 
         for e in room.state.events.iter() {
             match &*e.kind {
@@ -458,7 +467,20 @@ fn get_rooms(sync : &Box<matrix::Sync>) -> room::Rooms
                     let user = codec::User::new(sender.clone(), e.content.displayname.clone());
                     users.insert(sender, user);
                 },
+                "m.room.third_party_invite" => {
+                    println!(">>>TODO, third_party_invite ---");
+                    //println!("{:?}", e);
+                },
+                "m.room.create" => {
+                    //TODO: is fed
+                    creator = e.content.creator.clone();
+                    federate = e.content.m_federate;
+                },
+                "m.room.aliases" => {
+                    println!(">>>TODO, room aliases ---");
+                },
                 _ => {
+                    println!("______ get_rooms, TODo event : {:?} ", e);
                 }
             }
         }
@@ -466,17 +488,13 @@ fn get_rooms(sync : &Box<matrix::Sync>) -> room::Rooms
         if name.is_none() {
             name = Some("room has no name".to_owned());
         }
-        else if let Some(ref n) = name {
-            if n == TEST_ROOM {
-                println!("mikuroom msg : {:?}", messages);
-            }
-        }
-        
 
         let mut ro = codec::Room::new(
             id,
             &name.unwrap(),
-            &room.timeline.prev_batch
+            &room.timeline.prev_batch,
+            creator.as_ref().unwrap(),
+            federate
             );
 
         ro.messages = messages;
@@ -508,11 +526,14 @@ fn get_new_messages(sync : &Box<matrix::Sync>) -> HashMap<String, Vec<codec::Mes
 
                 },
                 _ => {
+                    println!("TODO other event : >>>>>>>>>>>>>>>>>>>>>>");
+                    println!("{:?}", e);
+                    println!("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<");
                 }
             }
         }
 
-        println!("id : {}, mmmmmmesss : {:?}", id, messages);
+        //println!("id : {}, mmmmmmesss : {:?}", id, messages);
 
         r.insert(id.clone(), messages);
     }
@@ -703,7 +724,7 @@ fn get_message_from_event(e : &matrix::Event) -> Option<codec::Message>
         t.clone()
     }
     else {
-        println!("i____no msgtype... : {:?}", e);
+        println!("_______no msgtype... : {:?}", e);
         return None;
     };
 
@@ -711,7 +732,7 @@ fn get_message_from_event(e : &matrix::Event) -> Option<codec::Message>
         body.clone()
     }
     else {
-        println!("no body");
+        println!("__________no body");
         return None;
     };
 
@@ -727,7 +748,7 @@ fn get_message_from_event(e : &matrix::Event) -> Option<codec::Message>
         s.clone()
     }
     else {
-        println!("no sender");
+        println!("_____________no sender");
         return None;
     };
 
@@ -739,7 +760,7 @@ fn get_message_from_event(e : &matrix::Event) -> Option<codec::Message>
         date.time().format("%H:%M:%S").to_string()
     }
     else {
-        println!("no timestamp");
+        println!("___________no timestamp");
         return None;
     };
 
@@ -901,9 +922,9 @@ fn get_messages(access_token : &str, room_id : &str, from : &str) -> Box<matrix:
     //println!("url : {}", url);
     let messages = get_content(&url).unwrap();
 
-    let pretty = json::parse(&messages).unwrap();
-    let ppp = pretty.pretty(2);
-    println!("{}", ppp);
+    //let pretty = json::parse(&messages).unwrap();
+    //let ppp = pretty.pretty(2);
+    //println!("{}", ppp);
 
     Box::new(serde_json::from_str(&messages).unwrap())
 }

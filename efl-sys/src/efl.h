@@ -12,7 +12,6 @@ struct Login {
 };
 
 void* login_new(Request_Login_Cb request_login_cb, void* data);
-void login_success(Eina_Bool b);
 
 struct Loading {
   Eo* object;

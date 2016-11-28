@@ -42,7 +42,7 @@ _elm_event_win(void *data, Evas_Object* o, Evas_Object* src, Evas_Callback_Type 
     Evas_Event_Key_Down *ev = event_info;
     if (evas_key_modifier_is_set(ev->modifiers, "Control") &&
         !strcmp(ev->key, "Tab")) {
-        printf("Key Down TABBBB : %s, TODO : use _ui to do something\n", ev->key);
+        //printf("Key Down TABBBB : %s, TODO : use _ui to do something\n", ev->key);
         if (_key_press_cb && _core_data) {
           _key_press_cb(_core_data, "Control", ev->key);
         }
@@ -120,7 +120,7 @@ struct Loading* loading_new(Evas_Object* win)
 static void
 login_entry_activated_cb(void *data EINA_UNUSED, Evas_Object *obj, void *event_info EINA_UNUSED)
 {
-     printf("entry activated login : %s\n", elm_entry_entry_get(obj));
+     //printf("entry activated login : %s\n", elm_entry_entry_get(obj));
      struct Login* log = data;
      elm_object_focus_set(log->pass, EINA_TRUE);
 }
@@ -129,7 +129,7 @@ login_entry_activated_cb(void *data EINA_UNUSED, Evas_Object *obj, void *event_i
 static void
 password_entry_activated_cb(void *data EINA_UNUSED, Evas_Object *obj, void *event_info EINA_UNUSED)
 {
-     printf("entry activated Password : %s\n", elm_entry_entry_get(obj));
+     //printf("entry activated Password : %s\n", elm_entry_entry_get(obj));
      struct Login* log = data;
      log->cb(
          log->data,
@@ -143,15 +143,11 @@ show_password_check_changed_cb(void *data, Evas_Object *obj, void *event_info EI
   Evas_Object *en = (Evas_Object *)data;
   Eina_Bool state = elm_check_state_get(obj);
 
-  if (state)
-  {
-    printf(" * Show Password...\n");
+  if (state) {
     elm_object_text_set(obj, "Hide Password");
     elm_entry_password_set(en, EINA_FALSE);
   }
-  else
-  {
-    printf(" * Hide Password...\n");
+  else {
     elm_object_text_set(obj, "Show Password");
     elm_entry_password_set(en, EINA_TRUE);
   }
@@ -252,14 +248,6 @@ void* login_new(Request_Login_Cb request_login_cb, void* data) {
   return log;
 }
 
-void login_success(Eina_Bool b) {
-  printf("success : %d \n", b);
-  if (b) {
-    evas_object_hide(_ui->login->object);
-    //print
-  }
-}
-
 static void
 _room_free(void *data)
 {
@@ -287,7 +275,7 @@ chat_new(Evas_Object* win)
 static void
 _notify_timeout(void *data EINA_UNUSED, Evas_Object *obj EINA_UNUSED, void *event_info EINA_UNUSED)
 {
- printf("end of timeout\n"); 
+ //printf("end of timeout\n"); 
 }
 
 struct Notify* notify_new(Evas_Object* win)
@@ -400,7 +388,7 @@ void room_text_add(
 {
   struct Room* room = eina_hash_find(_ui->chat->rooms, room_id);
   if (!room) {
-    printf("could not find room..., should add it? return for the moment\n");
+    printf("%s, could not find room..., should add it? return for the moment\n", __FUNCTION__);
     return;
   }
 
@@ -551,7 +539,7 @@ void room_set(const char *id)
 
   struct Room* room = eina_hash_find(chat->rooms, id);
   if (!room) {
-    printf("could not find room..., should add it? return for the moment\n");
+    printf("%s, could not find room..., should add it? return for the moment\n", __FUNCTION__);
     return;
   }
 
@@ -564,7 +552,7 @@ void room_title_set(const char *id, const char* title)
 {
   struct Room* room = eina_hash_find(_ui->chat->rooms, id);
   if (!room) {
-    printf("could not find room..., should add it? return for the moment\n");
+    printf("%s, could not find room..., should add it? return for the moment\n", __FUNCTION__);
     return;
   }
 

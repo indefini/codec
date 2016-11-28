@@ -7,7 +7,6 @@ use std::ffi::CString;
 enum Ui {}
 enum Ecore_Animator {}
 
-//pub type LoginSuccessCb = extern fn(data : *const Ui, success : bool);
 pub type SimpleDataCb = extern fn(data : *const c_void);
 pub type AnimatorCallback = extern fn(data : *const c_void) -> bool;
 
@@ -26,7 +25,6 @@ extern "C" {
 
     fn loading_text_set(t : *const c_char);
 
-    fn login_success(b : bool);
     fn ui_new(
         on_request_login_cb : *const c_void,
         on_key_press_cb : *const c_void,
@@ -61,11 +59,6 @@ impl UiCon
         UiCon {
         //    ui : unsafe { ui_new(login_cb as *const _, core) }
         }
-    }
-
-    pub fn on_success(&self, success : bool)
-    {
-        unsafe { login_success(success); }
     }
 
     pub fn set_login_visible(&self, visible : bool)
