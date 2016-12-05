@@ -140,7 +140,13 @@ pub struct EventContent
     pub m_federate : bool,
 
     //room aliases
-    pub aliases : Option<Vec<String>>
+    pub aliases : Option<Vec<String>>,
+
+    //room join rule
+    pub join_rule : Option<String>,
+
+    //room canonical alias
+    pub alias : Option<String>
 
 }
 
@@ -191,6 +197,29 @@ impl Session {
     }
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub enum JoinRule
+{
+    NotSet,
+    Public,
+    Knock,
+    Invite,
+    Private
+}
+
+pub fn get_join_rule(s : &str) -> JoinRule
+{
+    match s {
+        "public" => JoinRule::Public,
+        "knock" => JoinRule::Knock,
+        "invite" => JoinRule::Invite,
+        "private" => JoinRule::Private,
+        _ => {
+            println!("join rules not supported : {}", s);
+            JoinRule::NotSet
+        }
+    }
+}
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Room
@@ -203,8 +232,10 @@ pub struct Room
     pub messages : Vec<Message>,
     pub users : HashMap<String, User>,
     pub creator : String,
-    pub federate : bool
+    pub federate : bool,
     //pub user_colors : HashMap<String, String>,
+    
+    pub join_rule : JoinRule
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

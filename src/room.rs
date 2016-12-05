@@ -12,7 +12,8 @@ impl codec::Room {
         name : &str,
         prev_batch : &str,
         creator : &str,
-        federate : bool
+        federate : bool,
+        join_rule : codec::JoinRule
         ) -> codec::Room
     {
         codec::Room {
@@ -23,7 +24,8 @@ impl codec::Room {
             messages : Vec::new(),
             users : HashMap::new(),
             creator : creator.to_owned(),
-            federate : federate
+            federate : federate,
+            join_rule : join_rule,
         }
     }
 

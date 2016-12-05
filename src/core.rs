@@ -357,7 +357,9 @@ fn start_sync_task(uimx : UiMasterMx, con : Connection, rooms : Data)
         //println!("syncing started!!!");
         loop {
             let res = sync(&access_token2, con2.read().unwrap().next_batch.clone());
-            synctx.send(res).unwrap();
+            if let Some(r) = res {
+                synctx.send(r).unwrap();
+            }
 
             let duration = Duration::from_secs(5);
             thread::sleep(duration);
@@ -442,6 +444,7 @@ fn get_rooms(sync : &Box<matrix::Sync>) -> room::Rooms
         let mut users = HashMap::new();
         let mut creator = None;
         let mut federate = true;
+        let mut join_rule = codec::JoinRule::NotSet;
 
         for e in room.state.events.iter() {
             match &*e.kind {
@@ -472,21 +475,48 @@ fn get_rooms(sync : &Box<matrix::Sync>) -> room::Rooms
                     //println!("{:?}", e);
                 },
                 "m.room.create" => {
-                    //TODO: is fed
                     creator = e.content.creator.clone();
                     federate = e.content.m_federate;
                 },
                 "m.room.aliases" => {
                     println!(">>>TODO, room aliases ---");
                 },
+                "m.room.join_rules" => {
+                    join_rule = codec::get_join_rule(e.content.join_rule.as_ref().unwrap());
+                },
+                "m.room.power_levels" => {
+                    println!(">>>TODO, room power levels ---");
+                },
+                "m.room.history_visibility" => {
+                    println!(">>>TODO, room history visibility ---");
+                },
+                "m.room.canonical_alias" => {
+                    if name.is_none() {
+                        name = e.content.alias.clone()
+                    }
+                },
                 _ => {
-                    println!("______ get_rooms, TODo event : {:?} ", e);
+                    println!("______ get_rooms, TODo event : {} ", e.kind);
                 }
             }
         }
 
         if name.is_none() {
-            name = Some("room has no name".to_owned());
+            if !users.is_empty() {
+                let mut members = String::new();
+                for (id,u) in &users {
+                    if !members.is_empty() {
+                        members += ", ";
+                    }
+                    members += u.get_name();
+                }
+
+                name = Some(members);
+            }
+            else {
+                //TODO
+                name = Some("(no name), id :".to_owned() + id);
+            }
         }
 
         let mut ro = codec::Room::new(
@@ -494,7 +524,8 @@ fn get_rooms(sync : &Box<matrix::Sync>) -> room::Rooms
             &name.unwrap(),
             &room.timeline.prev_batch,
             creator.as_ref().unwrap(),
-            federate
+            federate,
+            join_rule,
             );
 
         ro.messages = messages;
@@ -888,7 +919,7 @@ fn login(user : &str, pass : &str) -> Box<matrix::LoginResponse>
 
 
  
-fn sync(access_token : &str, next_batch : Option<String>) -> Box<matrix::Sync>
+fn sync(access_token : &str, next_batch : Option<String>) -> Option<Box<matrix::Sync>>
 {
     let get_state_url = if let Some(ref nb) = next_batch {
         URL.to_owned() + PREFIX + GET_STATE + access_token + "&since=" + nb
@@ -897,11 +928,27 @@ fn sync(access_token : &str, next_batch : Option<String>) -> Box<matrix::Sync>
         URL.to_owned() + PREFIX + GET_STATE_FILTER + access_token
     };
 
-    let state = get_content(&get_state_url).unwrap();
+    let state = match get_content(&get_state_url) {
+        Ok(r) => r,
+        Err(e) => {
+            println!("error while syncing {}", e);
+            return None;
+        }
+    };
 
-    //let pretty = json::parse(&state).unwrap();
-    //let state = pretty.pretty(2);
-    //println!("{}", state);
+    {
+    let pretty = json::parse(&state);
+    match pretty {
+        Ok(o) =>  {
+            //let state = pretty.pretty(2);
+            //println!("{}", state);
+        },
+        Err(e) => {
+            println!("error with json?? : {}", e);
+            return None;
+        }
+    }
+    }
     /*
     if let Some(ref next_batch) = state["next_batch"].as_str() {
 
@@ -912,7 +959,7 @@ fn sync(access_token : &str, next_batch : Option<String>) -> Box<matrix::Sync>
     }
     */
 
-    Box::new(serde_json::from_str(&state).unwrap())
+    Some(Box::new(serde_json::from_str(&state).unwrap()))
 
 }
 
