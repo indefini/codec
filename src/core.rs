@@ -386,13 +386,6 @@ fn start_sync_task(uimx : UiMasterMx, con : Connection, rooms : Data)
                     if let Some(ref ui_con) = uimx.lock().unwrap().con {
                         ui_con.set_loading_visible(false);
                         ui_con.set_chat_visible(true);
-
-                        for (id, room) in &r {
-                            //println!("ok room : {}", room.read().unwrap().name);
-                            if room.read().unwrap().name == TEST_ROOM {
-                                add_chat_messages(&*ui_con, &*room.read().unwrap());
-                            }
-                        }
                     }
 
                     efl::main_loop_end();
@@ -400,7 +393,7 @@ fn start_sync_task(uimx : UiMasterMx, con : Connection, rooms : Data)
                     *rooms.write().unwrap() = r;
                 }
                 else if co.state == ConnectionState::SyncLoop {
-                    let m = get_new_messages(&sync);
+                    let room_events = get_new_events(&sync);
 
                     let ui : &UiMaster = &*uimx.lock().unwrap();
                     if let Some(ref ui_con) = ui.con {
@@ -410,18 +403,10 @@ fn start_sync_task(uimx : UiMasterMx, con : Connection, rooms : Data)
                         ui_con.set_chat_visible(true);
                     }
 
-                    for (room_id, mut msg) in m {
+                    for (room_id, mut events) in room_events {
                         if let Some(room) = rooms.read().unwrap().get(&*room_id) {
                             let mut rr = room.write().unwrap();
-                            //if rr.name == TEST_ROOM {
-                            //if rr.name == TEST_ROOM {
-                            //if ui.current_room_id.map_or_else(|| false, |ref o| o.as_str() == room_id) {
-                            //if ui.current_room_id.is_some() && *ui.current_room_id.as_ref().unwrap() == room_id {
-                                add_messages_to_room(ui, &mut *rr, &mut msg);
-                            //}
-                            //else {
-                             //   println!("got a message for room {}", rr.name);
-                            //}
+                            process_events_for_room(ui, &mut *rr, events);
                         }
                     }
                 }
@@ -447,57 +432,21 @@ fn get_rooms(sync : &Box<matrix::Sync>) -> room::Rooms
         let mut join_rule = codec::JoinRule::NotSet;
 
         for e in room.state.events.iter() {
-            match &*e.kind {
-                "m.room.name" => {
-                    if let Some(ref n) = e.content.name {
-                        name = Some(n.clone());
-                    }
+            match get_event(e) {
+                EventResult::Unknown => {
+                    println!("unkown event");
                 },
-                "m.room.message" => {
-                    if let Some(m) = get_message_from_event(e) {
-                        messages.push(m);
-                    }
-
+                EventResult::RoomName(n) => name = Some(n),
+                EventResult::Message(m) => messages.push(m),
+                EventResult::Topic(t) => topic = Some(t),
+                EventResult::User(user_id, user) => {
+                    users.insert(user_id, user);
                 },
-                "m.room.topic" => {
-                    if let Some(ref t) = e.content.topic {
-                        topic = Some(t.clone());
-                    }
-
+                EventResult::Creation(creator_id, fed) => {
+                    creator = Some(creator_id);
+                    federate = fed;
                 },
-                "m.room.member" => {
-                    let sender = e.sender.clone().unwrap();
-                    let user = codec::User::new(sender.clone(), e.content.displayname.clone());
-                    users.insert(sender, user);
-                },
-                "m.room.third_party_invite" => {
-                    println!(">>>TODO, third_party_invite ---");
-                    //println!("{:?}", e);
-                },
-                "m.room.create" => {
-                    creator = e.content.creator.clone();
-                    federate = e.content.m_federate;
-                },
-                "m.room.aliases" => {
-                    println!(">>>TODO, room aliases ---");
-                },
-                "m.room.join_rules" => {
-                    join_rule = codec::get_join_rule(e.content.join_rule.as_ref().unwrap());
-                },
-                "m.room.power_levels" => {
-                    println!(">>>TODO, room power levels ---");
-                },
-                "m.room.history_visibility" => {
-                    println!(">>>TODO, room history visibility ---");
-                },
-                "m.room.canonical_alias" => {
-                    if name.is_none() {
-                        name = e.content.alias.clone()
-                    }
-                },
-                _ => {
-                    println!("______ get_rooms, TODo event : {} ", e.kind);
-                }
+                EventResult::JoinRule(jr) => join_rule = jr,
             }
         }
 
@@ -538,35 +487,102 @@ fn get_rooms(sync : &Box<matrix::Sync>) -> room::Rooms
     r
 }
 
-fn get_new_messages(sync : &Box<matrix::Sync>) -> HashMap<String, Vec<codec::Message>>
+enum EventResult {
+    Unknown,
+    RoomName(String),
+    Message(codec::Message),
+    Topic(String),
+    User(String, codec::User),
+    Creation(String, bool),
+    JoinRule(codec::JoinRule)
+}
+
+fn get_event(e : &matrix::Event) -> EventResult
+{
+    match &*e.kind {
+        "m.room.name" => {
+            if let Some(ref n) = e.content.name {
+                return EventResult::RoomName(n.clone());
+            }
+        },
+        "m.room.message" => {
+            if let Some(m) = get_message_from_event(e) {
+                return EventResult::Message(m);
+            }
+        },
+        "m.room.topic" => {
+            if let Some(ref t) = e.content.topic {
+                return EventResult::Topic(t.clone());
+            }
+        },
+        "m.room.member" => {
+            let sender = e.sender.clone().unwrap();
+            let user = codec::User::new(sender.clone(), e.content.displayname.clone());
+            return EventResult::User(sender, user);
+        },
+        "m.room.third_party_invite" => {
+            println!(">>>TODO, third_party_invite ---");
+            //println!("{:?}", e);
+        },
+        "m.room.create" => {
+            if let Some(ref c) = e.content.creator {
+                let federate = e.content.m_federate;
+                return EventResult::Creation(c.clone(), federate);
+            }
+        },
+        "m.room.aliases" => {
+            println!(">>>TODO, room aliases ---");
+        },
+        "m.room.join_rules" => {
+            let join_rule = codec::get_join_rule(e.content.join_rule.as_ref().unwrap());
+            return EventResult::JoinRule(join_rule);
+        },
+        "m.room.power_levels" => {
+            println!(">>>TODO, room power levels ---");
+        },
+        "m.room.history_visibility" => {
+            println!(">>>TODO, room history visibility ---");
+        },
+        "m.room.canonical_alias" => {
+            if let Some(ref n) = e.content.alias {
+                return EventResult::RoomName(n.clone());
+            }
+        },
+        _ => {
+            println!("______ get_rooms, TODo event : {} ", e.kind);
+        }
+    }
+
+    return EventResult::Unknown;
+}
+
+fn get_new_events(sync : &Box<matrix::Sync>) -> HashMap<String, Vec<EventResult>>
 {
     let mut r = HashMap::new();
     for (id, room) in &sync.rooms.join {
         //println!("yes there is a room : {:?}", room);
 
-        let mut messages = Vec::new();
+        //Separate msgs and other events...
+        let mut events = Vec::new();
+        let mut msgs = Vec::new();
 
         for e in room.timeline.events.iter() {
             //println!("yes there is an event : {:?}", e);
-            match &*e.kind {
-                "m.room.message" => {
-                    //println!("yes there is a msg : {:?}", e.content);
-                    if let Some(m) = get_message_from_event(e) {
-                        messages.push(m);
-                    }
-
-                },
-                _ => {
-                    println!("TODO other event : >>>>>>>>>>>>>>>>>>>>>>");
-                    println!("{:?}", e);
-                    println!("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<");
-                }
+            let ev = get_event(e);
+            if let EventResult::Message(_) = ev {
+                msgs.push(ev);
+            }
+            else {
+                events.push(ev);
             }
         }
 
+        //... and put the msgs at the end so they get processed after other events.
+        events.append(&mut msgs);
+
         //println!("id : {}, mmmmmmesss : {:?}", id, messages);
 
-        r.insert(id.clone(), messages);
+        r.insert(id.clone(), events);
     }
 
     r
@@ -631,7 +647,6 @@ fn start_messages_task(
             }
         }
     });
-
 }
 
 fn add_chat_messages(uicon : &efl::UiCon, room : &codec::Room)
@@ -651,7 +666,8 @@ fn add_chat_messages(uicon : &efl::UiCon, room : &codec::Room)
     }
 }
 
-fn add_messages_to_room(ui : &UiMaster, room : &mut codec::Room, messages : &mut Vec<codec::Message>)
+//fn process_events_for_room(ui : &UiMaster, room : &mut codec::Room, events : &mut Vec<EventResult>)
+fn process_events_for_room(ui : &UiMaster, room : &mut codec::Room, events : Vec<EventResult>)
 {
     let uicon = if let Some(ref con) = ui.con {
         con
@@ -662,24 +678,52 @@ fn add_messages_to_room(ui : &UiMaster, room : &mut codec::Room, messages : &mut
 
     efl::main_loop_begin();
 
-    for m in &*messages {
-        match m.content {
-            codec::Content::Text(ref t) => {
-                //let user = room.users.get(&m.user).unwrap().get_name();
-                let user = room.users.get(&m.user).map_or("cannot find user", |u| u.get_name());
-                let name = "<color=#ff0000>".to_owned() + user + "</color>";
-                uicon.add_room_text(&room.id, &name, &m.time, t);
-                if !ui.get_current_id().as_ref().map_or(false, |o| *o == room.id) {
-                    uicon.notify(&room.name, &name, t);
-                }
+    //for e in &*events {
+    for e in events.into_iter() {
+        match e {
+            EventResult::Unknown => {
+                println!("unkown event");
             },
-            _ => {}
+            EventResult::RoomName(n) => {
+                room.name = n;
+                uicon.set_room_title(&room.id, &room.name);
+            },
+            EventResult::Message(m) => {
+                match m.content {
+                    codec::Content::Text(ref t) => {
+                        //let user = room.users.get(&m.user).unwrap().get_name();
+                        if !room.users.contains_key(&m.user) {
+                            println!("I don't have the user : {}", m.user);
+                        }
+                        let user = room.users.get(&m.user).map_or("cannot find user", |u| u.get_name());
+                        let name = "<color=#ff0000>".to_owned() + user + "</color>";
+                        uicon.add_room_text(&room.id, &name, &m.time, t);
+                        if !ui.get_current_id().as_ref().map_or(false, |o| *o == room.id) {
+                            uicon.notify(&room.name, &name, t);
+                        }
+                    },
+                    _ => {}
+                }
+                room.messages.push(m);
+            },
+            EventResult::Topic(t) => {
+                room.topic = Some(t);
+                println!("TODO update topic");
+            }
+            EventResult::User(user_id, user) => {
+                println!("//TODO update user name?.... new user!!!! : {}, {:?}", user_id, user);
+                room.users.insert(user_id, user);
+                //or maybe don't need to if you take care of user event before message event...
+            },
+            EventResult::Creation(creator_id, fed) => {
+                room.creator = creator_id;
+                room.federate = fed;
+            },
+            EventResult::JoinRule(jr) => room.join_rule = jr,
         }
     }
 
     efl::main_loop_end();
-
-    room.messages.append(messages);
 }
 
 
@@ -885,7 +929,6 @@ const URL : &'static str = "https://matrix.org:8448";
 const PREFIX :&'static str = "/_matrix/client/r0";
 const GET_STATE : &'static str = "/sync?access_token=";//YOUR_ACCESS_TOKEN"
 const GET_STATE_FILTER :&'static str = "/sync?filter={\"room\":{\"timeline\":{\"limit\":1}}}&access_token=";
-const GET_STATE_LOOP :&'static str = "/sync?access_token=";
 
 //const SEND_MSG = &'static str = "_matrix/client/r0/rooms/%21asfLdzLnOdGRkdPZWu:localhost/send/m.room.message?access_token=YOUR_ACCESS_TOKEN"
 
@@ -922,7 +965,7 @@ fn login(user : &str, pass : &str) -> Box<matrix::LoginResponse>
 fn sync(access_token : &str, next_batch : Option<String>) -> Option<Box<matrix::Sync>>
 {
     let get_state_url = if let Some(ref nb) = next_batch {
-        URL.to_owned() + PREFIX + GET_STATE + access_token + "&since=" + nb
+        URL.to_owned() + PREFIX + GET_STATE + access_token + "&since=" + nb + "&timeout=10000"
     }
     else {
         URL.to_owned() + PREFIX + GET_STATE_FILTER + access_token

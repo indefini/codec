@@ -142,7 +142,6 @@ pub fn add_anim_fn<F>(f : F) where F : Fn() -> bool
         ecore_animator_add(do_thing_wrapper::<F>, fp);
     }
 
-
     extern fn do_thing_wrapper<F>(f : *const c_void) -> bool
     //extern fn do_thing_wrapper<F>(f : AnimatorCallback, data : *const c_void)
       where F: Fn() -> bool {
