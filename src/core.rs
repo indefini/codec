@@ -27,17 +27,19 @@ pub struct App
 }
 
 impl App {
-    pub fn new() -> App {
+
+    pub fn new() -> App
+    {
         let mut core = Box::new(Core::new());
+
         let ui_con = efl::UiCon::new(
             request_login_from_ui as *const c_void,
             key_press as *const c_void,
             &*core as *const _ as *const c_void);
 
-         //for id in core.rooms.read().unwrap().keys() {
          for (id, r) in core.rooms.read().unwrap().iter() {
              ui_con.new_room(id);
-             //tODO set title in new_room func
+             //TODO set title in new_room func
              let room = r.read().unwrap();
              let title = room.name.clone();// + room.topic.map_or("");
              ui_con.set_room_title(id, &title);
@@ -45,7 +47,6 @@ impl App {
 
         core.ui.lock().unwrap().con = Some(ui_con);
         core.ui.lock().unwrap().show_current();
-
 
         match (&core.session.user, &core.session.pass) {
             (&Some(ref u), &Some(ref p)) => {
@@ -189,6 +190,7 @@ struct Core
 enum ConnectionState {
     Offline,
     Login,
+    SyncAll,
     SyncFirst,
     SyncLoop
 }
@@ -197,7 +199,8 @@ struct ConnectionData
 {
     access_token : Option<String>,
     next_batch : Option<String>,
-    state : ConnectionState
+    state : ConnectionState,
+    past : bool
 }
 
 impl ConnectionData {
@@ -205,7 +208,8 @@ impl ConnectionData {
         ConnectionData {
             access_token : None,
             next_batch : None,
-            state : ConnectionState::Offline
+            state : ConnectionState::Offline,
+            past : false
         }
     }
 }
@@ -257,10 +261,7 @@ impl Core
 
     pub fn request_login(&self, user : &str, pass : &str)
     {
-        //let ui_con = self.ui_con.as_ref().unwrap();
-
         if let Some(ref ui_con) = self.ui.lock().unwrap().con {
-            //efl::set_login_visible(false);
             ui_con.set_login_visible(false);
             ui_con.set_loading_visible(true);
             ui_con.clone()
@@ -292,7 +293,7 @@ impl Core
 
         self.con.write().unwrap().state = ConnectionState::Login;
 
-        let child = thread::spawn(move || {
+        thread::spawn(move || {
             let res = loginstring(users, passs);
             tx.send(res).unwrap();
         });
@@ -308,10 +309,10 @@ impl Core
                     {
                         let mut con = con_lock.write().unwrap();
                         if con.next_batch.is_none() {
-                            con.state = ConnectionState::SyncFirst;
+                            con.state = ConnectionState::SyncAll;
                         }
                         else {
-                            con.state = ConnectionState::SyncLoop;
+                            con.state = ConnectionState::SyncFirst;
                         }
                         con.access_token = Some(login.access_token.clone());
                     }
@@ -339,7 +340,7 @@ impl Core
 
 fn start_sync_task(uimx : UiMasterMx, con : Connection, rooms : Data)
 {
-    if con.read().unwrap().state == ConnectionState::SyncFirst {
+    if con.read().unwrap().state == ConnectionState::SyncAll {
         efl::main_loop_begin();
         if let Some(ref ui_con) = uimx.lock().unwrap().con {
             ui_con.set_loading_text("syncing");
@@ -361,10 +362,12 @@ fn start_sync_task(uimx : UiMasterMx, con : Connection, rooms : Data)
                 synctx.send(r).unwrap();
             }
 
-            let duration = Duration::from_secs(5);
+            let duration = Duration::from_secs(1);
             thread::sleep(duration);
         }
     });
+
+    let access_token3 = access_token.clone();
 
     thread::spawn(move || {
         loop {
@@ -373,7 +376,7 @@ fn start_sync_task(uimx : UiMasterMx, con : Connection, rooms : Data)
                 let mut co = con.write().unwrap();
                 co.next_batch = Some(sync.next_batch.clone());
 
-                if co.state == ConnectionState::SyncFirst {
+                if co.state == ConnectionState::SyncAll {
                     //println!("syncing over!!!");
                     let r = get_rooms(&sync);
                     co.state = ConnectionState::SyncLoop;
@@ -392,7 +395,19 @@ fn start_sync_task(uimx : UiMasterMx, con : Connection, rooms : Data)
 
                     *rooms.write().unwrap() = r;
                 }
-                else if co.state == ConnectionState::SyncLoop {
+                else if co.state == ConnectionState::SyncFirst  ||
+                    co.state == ConnectionState::SyncLoop {
+
+                    if co.state == ConnectionState::SyncFirst {
+                         co.state = ConnectionState::SyncLoop;
+
+                         //TODO get old messages for each rooms
+                         for (_,r) in &*rooms.write().unwrap()
+                         {
+                             start_messages_task(uimx.clone(), &access_token3, r.clone());
+                         }
+                    }
+
                     let room_events = get_new_events(&sync);
 
                     let ui : &UiMaster = &*uimx.lock().unwrap();
@@ -406,12 +421,12 @@ fn start_sync_task(uimx : UiMasterMx, con : Connection, rooms : Data)
                     for (room_id, mut events) in room_events {
                         if let Some(room) = rooms.read().unwrap().get(&*room_id) {
                             let mut rr = room.write().unwrap();
-                            process_events_for_room(ui, &mut *rr, events);
+                            process_events_for_room(ui, &mut *rr, events, false);
                         }
                     }
                 }
 
-            let duration = Duration::from_secs(5);
+            let duration = Duration::from_secs(1);
             thread::sleep(duration);
             }
         }
@@ -596,11 +611,13 @@ fn start_messages_task(
     let (room_id, prev_batch, room_name) =
     {
         let room = room.read().unwrap();
+        /*
         efl::main_loop_begin();
         if let Some(ref ui_con) = uimx.lock().unwrap().con {
             ui_con.set_loading_text(&("getting messages for".to_owned() + &room.name));
         }
         efl::main_loop_end();
+        */
 
 
         //let room_id = room.id().to_owned();
@@ -619,29 +636,20 @@ fn start_messages_task(
         thread::Builder::new().name(room_name.clone()).spawn(move || {
             //thread::spawn(move || {
             println!("get messages for {}", room_name);
-            let res = get_room_messages(&access_token, &room_id, &prev_batch);
+            let res = get_room_events(&access_token, &room_id, &prev_batch);
             tx.send(res).unwrap();
         });
     }
 
     thread::spawn(move || {
         loop {
-            if let Ok(ref mut res) = rx.try_recv() {
+            //if let Ok(ref mut room_events) = rx.try_recv() {
+            if let Ok(room_events) = rx.try_recv() {
                 let mut room = room.write().unwrap();
-                room.messages.append(res);
                 println!("get messages for '{}' over!!!", room_name);
-                efl::main_loop_begin();
 
-                if let Some(ref ui_con) = uimx.lock().unwrap().con {
-                    if room_name == TEST_ROOM {
-                        ui_con.set_loading_visible(false);
-                        ui_con.set_chat_visible(true);
-                        //add_chat_messages(&*ui_con, &room.messages);
-                        add_chat_messages(&*ui_con, &*room);
-                    }
-                }
-
-                efl::main_loop_end();
+                let ui : &UiMaster = &*uimx.lock().unwrap();
+                process_events_for_room(ui, &mut *room, room_events, true);
 
                 break;
             }
@@ -649,25 +657,11 @@ fn start_messages_task(
     });
 }
 
-fn add_chat_messages(uicon : &efl::UiCon, room : &codec::Room)
-{
-    for m in &room.messages {
-        match m.content {
-            codec::Content::Text(ref t) => {
-                let user = room.users.get(&m.user).unwrap().get_name();
-                let name = "<color=#ff0000>".to_owned() + user + "</color>";
-                uicon.add_room_text(&room.id, &name, &m.time, t);
-            },
-            _ => {
-                println!("content is not text!!!!!!!!");
-            }
-
-        }
-    }
-}
-
-//fn process_events_for_room(ui : &UiMaster, room : &mut codec::Room, events : &mut Vec<EventResult>)
-fn process_events_for_room(ui : &UiMaster, room : &mut codec::Room, events : Vec<EventResult>)
+fn process_events_for_room(
+    ui : &UiMaster,
+    room : &mut codec::Room,
+    events : Vec<EventResult>,
+    old : bool)
 {
     let uicon = if let Some(ref con) = ui.con {
         con
@@ -680,6 +674,15 @@ fn process_events_for_room(ui : &UiMaster, room : &mut codec::Room, events : Vec
 
     //for e in &*events {
     for e in events.into_iter() {
+        match e {
+            EventResult::Message(_) => {},
+            _ => {
+                if old {
+                    continue;
+                }
+            }
+        }
+
         match e {
             EventResult::Unknown => {
                 println!("unkown event");
@@ -694,11 +697,12 @@ fn process_events_for_room(ui : &UiMaster, room : &mut codec::Room, events : Vec
                         //let user = room.users.get(&m.user).unwrap().get_name();
                         if !room.users.contains_key(&m.user) {
                             println!("I don't have the user : {}", m.user);
+                            println!("------------ and he is trying to say this : {:?}", m);
                         }
                         let user = room.users.get(&m.user).map_or("cannot find user", |u| u.get_name());
                         let name = "<color=#ff0000>".to_owned() + user + "</color>";
-                        uicon.add_room_text(&room.id, &name, &m.time, t);
-                        if !ui.get_current_id().as_ref().map_or(false, |o| *o == room.id) {
+                        uicon.add_room_text(&room.id, &name, &m.time, t, old);
+                        if !old && !ui.get_current_id().as_ref().map_or(false, |o| *o == room.id) {
                             uicon.notify(&room.name, &name, t);
                         }
                     },
@@ -727,10 +731,10 @@ fn process_events_for_room(ui : &UiMaster, room : &mut codec::Room, events : Vec
 }
 
 
-fn get_room_messages(
+fn get_room_events(
     access_token : &str,
     room_id : &str,
-    prev_batch : &str) -> Vec<codec::Message>
+    prev_batch : &str) -> Vec<EventResult>
 {
     let msg_res = get_messages(
                 access_token,
@@ -739,15 +743,13 @@ fn get_room_messages(
 
     //println!("MESSSSSSSSSSSSSSSSSS : {:?}", msg_res);
 
-    let mut messages = Vec::new();
+    let mut events = Vec::new();
 
     for e in &msg_res.chunk {
-        if let Some(m) = get_message_from_event(e) {
-            messages.push(m);
-        }
+        events.push(get_event(e));
     }
 
-    messages
+    events
 
     /*
     let room_messages : HashMap<String, Box<Messages>> = 

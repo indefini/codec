@@ -71,6 +71,6 @@ void notify_add(const char *room, const char* user, const char* message);
 
 void room_new(const char *id);
 void room_set(const char *id);
-void room_text_add(const char *room_id, const char *user, const char *time, const char *message);
+void room_text_add(const char *room_id, const char *user, const char *time, const char *message, Eina_Bool start);
 void room_title_set(const char *id, const char* title);
 

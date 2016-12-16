@@ -384,7 +384,8 @@ void room_text_add(
     const char* room_id,
     const char *user,
     const char *time,
-    const char *message)
+    const char *message,
+    Eina_Bool start)
 {
   struct Room* room = eina_hash_find(_ui->chat->rooms, room_id);
   if (!room) {
@@ -399,7 +400,12 @@ void room_text_add(
   evas_object_size_hint_align_set(bx_msg, EVAS_HINT_FILL, 1.0);
   elm_box_horizontal_set(bx_msg,  EINA_TRUE);
   elm_box_padding_set(bx_msg, 4, 4);
-  elm_box_pack_end(bx_parent, bx_msg);
+  if (start) {
+    elm_box_pack_start(bx_parent, bx_msg);
+  }
+  else {
+    elm_box_pack_end(bx_parent, bx_msg);
+  }
   evas_object_show(bx_msg);
 
   Eo* label = elm_label_add(bx_msg);

@@ -33,7 +33,13 @@ extern "C" {
 
     fn room_new(id : *const c_char);
     fn room_set(id : *const c_char);
-    fn room_text_add(room_id : *const c_char, user : *const c_char, msg: *const c_char, time : *const c_char);
+    fn room_text_add(
+        room_id : *const c_char,
+        user : *const c_char,
+        msg: *const c_char,
+        time : *const c_char,
+        start : bool);
+
     fn notify_add(room : *const c_char, user : *const c_char, msg: *const c_char);
 
     fn room_title_set(id :* const c_char, title :  *const c_char);
@@ -81,14 +87,16 @@ impl UiCon
         unsafe { loading_text_set(CString::new(text).unwrap().as_ptr()); }
     }
 
-    pub fn add_room_text(&self, room : &str,  user :&str, time : &str, text : &str)
+    pub fn add_room_text(&self, room : &str,  user :&str, time : &str, text : &str, start : bool)
     {
         unsafe { 
             room_text_add(
                 CString::new(room).unwrap().as_ptr(),
                 CString::new(user).unwrap().as_ptr(),
                 CString::new(time).unwrap().as_ptr(),
-                CString::new(text).unwrap().as_ptr());
+                CString::new(text).unwrap().as_ptr(),
+                start
+                );
         }
     }
 
