@@ -1011,12 +1011,12 @@ fn sync(access_token : &str, next_batch : Option<String>) -> Option<Box<matrix::
 fn get_messages(access_token : &str, room_id : &str, from : &str) -> Box<matrix::Messages>
 {
     let url = URL.to_owned() + PREFIX + "/rooms/" + room_id + "/messages" + "?from=" + from + "&dir=b&limit=10" + "&access_token=" + access_token;
-    //println!("url : {}", url);
     let messages = get_content(&url).unwrap();
 
-    //let pretty = json::parse(&messages).unwrap();
-    //let ppp = pretty.pretty(2);
-    //println!("{}", ppp);
+    let pretty = json::parse(&messages).unwrap();
+    let ppp = pretty.pretty(2);
+    println!("url : {}", url);
+    println!("{}", ppp);
 
     Box::new(serde_json::from_str(&messages).unwrap())
 }
