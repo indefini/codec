@@ -398,16 +398,6 @@ fn start_sync_task(uimx : UiMasterMx, con : Connection, rooms : Data)
                 else if co.state == ConnectionState::SyncFirst  ||
                     co.state == ConnectionState::SyncLoop {
 
-                    if co.state == ConnectionState::SyncFirst {
-                         co.state = ConnectionState::SyncLoop;
-
-                         //TODO get old messages for each rooms
-                         for (_,r) in &*rooms.write().unwrap()
-                         {
-                             start_messages_task(uimx.clone(), &access_token3, r.clone());
-                         }
-                    }
-
                     let room_events = get_new_events(&sync);
 
                     let ui : &UiMaster = &*uimx.lock().unwrap();
@@ -423,6 +413,16 @@ fn start_sync_task(uimx : UiMasterMx, con : Connection, rooms : Data)
                             let mut rr = room.write().unwrap();
                             process_events_for_room(ui, &mut *rr, events, false);
                         }
+                    }
+
+                    if co.state == ConnectionState::SyncFirst {
+                         co.state = ConnectionState::SyncLoop;
+
+                         //TODO get old messages for each rooms
+                         for (_,r) in &*rooms.write().unwrap()
+                         {
+                             start_messages_task(uimx.clone(), &access_token3, r.clone());
+                         }
                     }
                 }
 
@@ -985,8 +985,8 @@ fn sync(access_token : &str, next_batch : Option<String>) -> Option<Box<matrix::
     let pretty = json::parse(&state);
     match pretty {
         Ok(o) =>  {
-            //let state = pretty.pretty(2);
-            //println!("{}", state);
+            let state = o.pretty(2);
+            println!("{}", state);
         },
         Err(e) => {
             println!("error with json?? : {}", e);
