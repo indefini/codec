@@ -166,12 +166,16 @@ impl UiMaster {
     fn show_current(&self)
     {
         if self.rooms.is_empty() {
+            println!("!!!!!!!!!!!!!!rooms is empty");
             return;
         }
 
         if let Some(ref con) = self.con {
-            //println!("ok will try to show :{}, {}", self.current, self.rooms[self.current]);
+            println!("ok will try to show :{}, {}", self.current, self.rooms[self.current]);
             con.set_room(&self.rooms[self.current]);
+        }
+        else {
+            println!("no con!!!!!!!!!!!!!!!!!!!!!");
         }
 
     }
@@ -343,7 +347,7 @@ fn start_sync_task(uimx : UiMasterMx, con : Connection, rooms : Data)
     if con.read().unwrap().state == ConnectionState::SyncAll {
         efl::main_loop_begin();
         if let Some(ref ui_con) = uimx.lock().unwrap().con {
-            ui_con.set_loading_text("syncing");
+            ui_con.set_loading_text("syncing all");
         }
         efl::main_loop_end();
     }
@@ -376,10 +380,12 @@ fn start_sync_task(uimx : UiMasterMx, con : Connection, rooms : Data)
                 let mut co = con.write().unwrap();
                 co.next_batch = Some(sync.next_batch.clone());
 
+                //println!("syncing over, state : {:?}", co.state);
+
                 if co.state == ConnectionState::SyncAll {
-                    //println!("syncing over!!!");
-                    let r = get_rooms(&sync);
+                    println!("syncing all over!!!");
                     co.state = ConnectionState::SyncLoop;
+                    let (r, room_events) = get_rooms(&sync);
 
                     efl::main_loop_begin();
                     //efl::add_async(|| {
@@ -389,11 +395,34 @@ fn start_sync_task(uimx : UiMasterMx, con : Connection, rooms : Data)
                     if let Some(ref ui_con) = uimx.lock().unwrap().con {
                         ui_con.set_loading_visible(false);
                         ui_con.set_chat_visible(true);
+
+                        for (id, ro) in &r {
+                            ui_con.new_room(id);
+                            //TODO set title in new_room func
+                            let room = ro.read().unwrap();
+                            let title = room.name.clone();// + room.topic.map_or("");
+                            ui_con.set_room_title(id, &title);
+                        }
                     }
 
                     efl::main_loop_end();
 
+                    let ui = &mut *uimx.lock().unwrap();
+
+                    {
+                    for (room_id, mut events) in room_events {
+                        if let Some(room) = r.get(&*room_id) {
+                            let mut rr = room.write().unwrap();
+                            process_events_for_room(ui, &mut *rr, events, false);
+                        }
+                    }
+
+                    ui.rooms = r.keys().map(|s| s.clone()).collect();
+                    ui.show_current();
+                    }
+
                     *rooms.write().unwrap() = r;
+
                 }
                 else if co.state == ConnectionState::SyncFirst  ||
                     co.state == ConnectionState::SyncLoop {
@@ -408,10 +437,12 @@ fn start_sync_task(uimx : UiMasterMx, con : Connection, rooms : Data)
                         ui_con.set_chat_visible(true);
                     }
 
-                    for (room_id, mut events) in room_events {
+                    for (room_id, mut events_and_prevbatch) in room_events {
                         if let Some(room) = rooms.read().unwrap().get(&*room_id) {
                             let mut rr = room.write().unwrap();
+                            let (events, prev_batch) = events_and_prevbatch;
                             process_events_for_room(ui, &mut *rr, events, false);
+                            rr.prev_batch = prev_batch;
                         }
                     }
 
@@ -433,8 +464,9 @@ fn start_sync_task(uimx : UiMasterMx, con : Connection, rooms : Data)
     });
 }
 
-fn get_rooms(sync : &Box<matrix::Sync>) -> room::Rooms
+fn get_rooms(sync : &Box<matrix::Sync>) -> (room::Rooms, HashMap<String,Vec<EventResult>>)
 {
+    let mut room_events = HashMap::new();
     let mut r = HashMap::new();
     for (id, room) in sync.rooms.join.iter() {
 
@@ -445,14 +477,21 @@ fn get_rooms(sync : &Box<matrix::Sync>) -> room::Rooms
         let mut creator = None;
         let mut federate = true;
         let mut join_rule = codec::JoinRule::NotSet;
+        let mut events = Vec::new();
 
         for e in room.state.events.iter() {
-            match get_event(e) {
+            let er = get_event(e); 
+            //println!("get_rooms : event : {:?}", er);
+            match er {
                 EventResult::Unknown => {
                     println!("unkown event");
                 },
                 EventResult::RoomName(n) => name = Some(n),
-                EventResult::Message(m) => messages.push(m),
+                //EventResult::Message(m) => messages.push(m),
+                EventResult::Message(_) => {
+                    println!("00000 adding event result for {:?}, {}, {:?}", name, id, er);
+                    events.push(er)
+                },
                 EventResult::Topic(t) => topic = Some(t),
                 EventResult::User(user_id, user) => {
                     users.insert(user_id, user);
@@ -462,6 +501,22 @@ fn get_rooms(sync : &Box<matrix::Sync>) -> room::Rooms
                     federate = fed;
                 },
                 EventResult::JoinRule(jr) => join_rule = jr,
+            }
+        }
+
+        for e in room.timeline.events.iter() {
+            let er = get_event(e); 
+            //println!("get_rooms : event : {:?}", er);
+            match er {
+                EventResult::Unknown => {
+                    println!("unkown event");
+                },
+                EventResult::Message(_) => {
+                    println!("111111 adding event result for {:?}, {}, {:?}", name, id, er);
+                    events.push(er)
+                },
+                _ => { println!("todo : event not taking cared of : {:?}", er);
+                }
             }
         }
 
@@ -497,11 +552,13 @@ fn get_rooms(sync : &Box<matrix::Sync>) -> room::Rooms
         ro.users = users;
 
         r.insert(id.clone(), Arc::new(RwLock::new(ro)));
+        room_events.insert(id.clone(), events);
     }
 
-    r
+    (r, room_events)
 }
 
+#[derive(Debug)]
 enum EventResult {
     Unknown,
     RoomName(String),
@@ -571,7 +628,7 @@ fn get_event(e : &matrix::Event) -> EventResult
     return EventResult::Unknown;
 }
 
-fn get_new_events(sync : &Box<matrix::Sync>) -> HashMap<String, Vec<EventResult>>
+fn get_new_events(sync : &Box<matrix::Sync>) -> HashMap<String, (Vec<EventResult>,String)>
 {
     let mut r = HashMap::new();
     for (id, room) in &sync.rooms.join {
@@ -597,7 +654,7 @@ fn get_new_events(sync : &Box<matrix::Sync>) -> HashMap<String, Vec<EventResult>
 
         //println!("id : {}, mmmmmmesss : {:?}", id, messages);
 
-        r.insert(id.clone(), events);
+        r.insert(id.clone(), (events, room.timeline.prev_batch.clone()));
     }
 
     r
@@ -966,6 +1023,7 @@ fn login(user : &str, pass : &str) -> Box<matrix::LoginResponse>
  
 fn sync(access_token : &str, next_batch : Option<String>) -> Option<Box<matrix::Sync>>
 {
+    let nonext = next_batch.is_none();
     let get_state_url = if let Some(ref nb) = next_batch {
         URL.to_owned() + PREFIX + GET_STATE + access_token + "&since=" + nb + "&timeout=10000"
     }
@@ -986,7 +1044,9 @@ fn sync(access_token : &str, next_batch : Option<String>) -> Option<Box<matrix::
     match pretty {
         Ok(o) =>  {
             let state = o.pretty(2);
+            if nonext {
             println!("{}", state);
+            }
         },
         Err(e) => {
             println!("error with json?? : {}", e);
